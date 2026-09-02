@@ -185,3 +185,103 @@ def test_migration_them_cot_game_type(tmp_path):
     assert session is not None
     assert session.game_type == "3cay"
     db.close()
+
+
+# --- V4 -> V5: THEM BANG TRACKING ---
+# v5 chi them bang moi, khong sua bang cu, nen migration phai giu nguyen 100% du lieu game.
+
+V4_SCHEMA = """
+CREATE TABLE chats (chat_key TEXT PRIMARY KEY, platform TEXT NOT NULL, native_id TEXT NOT NULL,
+    title TEXT, sheet_url TEXT, web_token TEXT, created_at TEXT NOT NULL);
+CREATE TABLE players (id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_key TEXT NOT NULL REFERENCES chats(chat_key) ON DELETE CASCADE,
+    name TEXT NOT NULL, norm_name TEXT NOT NULL, seat INTEGER NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, UNIQUE (chat_key, norm_name));
+CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_key TEXT NOT NULL REFERENCES chats(chat_key) ON DELETE CASCADE,
+    game_type TEXT NOT NULL DEFAULT '3cay', note TEXT, seats TEXT NOT NULL,
+    started_at TEXT NOT NULL, ended_at TEXT);
+CREATE TABLE rounds (id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    seq INTEGER NOT NULL, banker_id INTEGER NOT NULL REFERENCES players(id),
+    raw_input TEXT NOT NULL, tg_user TEXT, voided INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL, edited_at TEXT, UNIQUE (session_id, seq));
+CREATE TABLE round_scores (round_id INTEGER NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+    player_id INTEGER NOT NULL REFERENCES players(id),
+    score INTEGER NOT NULL, is_banker INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (round_id, player_id));
+"""
+
+TRACKING_TABLES = {"bot_users", "chat_members", "usage_events", "ref_clicks"}
+
+
+def make_v4(path):
+    conn = sqlite3.connect(path)
+    conn.executescript(V4_SCHEMA)
+    conn.execute("PRAGMA user_version = 4")
+    conn.execute(
+        "INSERT INTO chats VALUES ('zalo:abc', 'zalo', 'abc', 'Nhóm Zalo', NULL, 'tok', 'now')"
+    )
+    conn.executemany(
+        "INSERT INTO players (id, chat_key, name, norm_name, seat, active, created_at) "
+        "VALUES (?, 'zalo:abc', ?, ?, ?, 1, 'now')",
+        [(1, "Hương", "huong", 0), (2, "Hằng", "hang", 1), (3, "Toàn", "toan", 2)],
+    )
+    conn.execute(
+        "INSERT INTO sessions (id, chat_key, game_type, note, seats, started_at) "
+        "VALUES (5, 'zalo:abc', 'sam', 'tối chủ nhật', '[1, 2, 3]', 'now')"
+    )
+    conn.execute(
+        "INSERT INTO rounds (id, session_id, seq, banker_id, raw_input, created_at) "
+        "VALUES (9, 5, 1, 3, '-5, -10, c', 'now')"
+    )
+    conn.executemany(
+        "INSERT INTO round_scores VALUES (9, ?, ?, ?)", [(1, -5, 0), (2, -10, 0), (3, 15, 1)]
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_v4_len_v5_giu_nguyen_du_lieu_game(tmp_path):
+    path = tmp_path / "v4.db"
+    make_v4(path)
+    db = Database(path)
+
+    assert db.conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    assert [p.name for p in db.get_roster("zalo:abc")] == ["Hương", "Hằng", "Toàn"]
+
+    session = db.active_session("zalo:abc")
+    assert session.id == 5 and session.game_type == "sam" and session.note == "tối chủ nhật"
+
+    rounds = db.get_rounds(session.id)
+    assert rounds[0].scores == {1: -5, 2: -10, 3: 15}
+    assert sum(rounds[0].scores.values()) == 0
+    assert db.get_or_create_web_token("zalo:abc") == "tok"
+    db.close()
+
+
+def test_v4_len_v5_them_du_bang_tracking(tmp_path):
+    path = tmp_path / "v4.db"
+    make_v4(path)
+    db = Database(path)
+
+    tables = {
+        r[0] for r in db.conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    }
+    assert TRACKING_TABLES <= tables
+    assert db.conn.execute("PRAGMA foreign_key_check").fetchall() == []
+    db.close()
+
+
+def test_v4_len_v5_ghi_duoc_ngay_du_lieu_tracking(tmp_path):
+    path = tmp_path / "v4.db"
+    make_v4(path)
+    db = Database(path)
+
+    user, is_new = db.upsert_user("zalo", "user-1", "Hương", chat_key="zalo:abc")
+    db.touch_member("zalo:abc", user.id)
+    db.log_event(platform="zalo", kind="command", chat_key="zalo:abc", user_id=user.id)
+
+    assert is_new and user.ref_code
+    assert db.earliest_member("zalo:abc") == user.id
+    assert db.conn.execute("PRAGMA foreign_key_check").fetchall() == []
+    db.close()

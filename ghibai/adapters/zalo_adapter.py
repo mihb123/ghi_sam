@@ -175,6 +175,8 @@ class ZaloWebhook:
                     chat_title=sender.get("display_name") if chat.get("chat_type") == "PRIVATE" else None,
                     text=text,
                     author=sender.get("display_name"),
+                    native_user_id=str(sender["id"]) if sender.get("id") else None,
+                    chat_type=chat.get("chat_type"),
                 ),
                 fmt,
             )

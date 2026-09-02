@@ -31,6 +31,7 @@ MENU = [
     ("khoiphuc", "Lấy lại ván đã xóa"),
     ("tong", "Điểm lũy kế bàn đang chơi"),
     ("lichsu", "Các ván gần nhất"),
+    ("chiase", "Lấy link mời bạn bè dùng bot"),
     ("sheet", "Xem/đặt link Google Sheet"),
     ("export", "Ghi bàn đang chơi lên Google Sheet"),
 ]
@@ -45,7 +46,8 @@ def build_application(token: str, engine: Engine) -> Application:
     return app
 
 
-async def setup(app: Application) -> None:
+# Tra ve username cua bot: lenh /chiase can no de dung deep link t.me/<bot>?start=...
+async def setup(app: Application) -> str | None:
     await app.bot.set_my_commands([BotCommand(c, d) for c, d in MENU])
 
     # Group Privacy con bat thi trong group bot chi thay lenh co '/', khong thay '-5, 5, , 6'.
@@ -65,6 +67,7 @@ async def setup(app: Application) -> None:
             "Group Privacy dang TAT. Neu group nao chi nhan duoc lenh co '/', group do da them "
             "bot tu truoc khi tat: kick bot ra roi them lai, hoac cap quyen admin cho bot."
         )
+    return me.username
 
 
 async def _on_message(update: Update, context) -> None:
@@ -83,6 +86,9 @@ async def _on_message(update: Update, context) -> None:
             chat_title=chat.title,
             text=strip_bot_mention(message.text, context.bot.username),
             author=user.full_name if user else None,
+            native_user_id=str(user.id) if user else None,
+            username=user.username if user else None,
+            chat_type=chat.type,
         ),
         fmt,
     )

@@ -197,6 +197,57 @@ def history(
     return "\n\n".join(blocks) + note
 
 
+SOURCE_LABEL = {
+    "link": "link chia sẻ",
+    "group": "cùng nhóm",
+    "landing": "trang mời",
+}
+
+
+# Payload lay tu stats.overview(); giu dung 1 nguon so lieu cho ca lenh nay va trang /admin.
+def stats(fmt, data: dict) -> str:
+    users, refs, totals = data["users"], data["referrals"], data["totals"]
+
+    blocks = [
+        fmt.b("📊 Thống kê bot"),
+        "",
+        fmt.b("Người dùng"),
+        f"Tổng: {totals['users']} · mới hôm nay: {users['newToday']} · 7 ngày: {users['new7d']}",
+        f"Đang dùng — hôm nay {users['dau']} · 7 ngày {users['wau']} · 30 ngày {users['mau']}",
+        "",
+        fmt.b("Lưu lượng"),
+        f"{totals['chats']} nhóm/chat · {totals['rounds']} ván đã ghi · "
+        f"{totals['events']} lượt dùng",
+    ]
+
+    platforms = " · ".join(
+        f"{p['platform']}: {p['users']} người / {p['chats']} chat" for p in data["byPlatform"]
+    )
+    if platforms:
+        blocks += ["", fmt.b("Theo nền tảng"), platforms]
+
+    blocks += [
+        "",
+        fmt.b("Giới thiệu"),
+        f"Đã biết nguồn: {refs['attributed']}/{totals['users']} người "
+        f"(chắc chắn {refs['exact']} · suy đoán {refs['inferred']})",
+        f"Người từng mời được: {refs['inviters']} · K-factor {refs['kFactor']}",
+    ]
+    if refs["bySource"]:
+        detail = " · ".join(
+            f"{SOURCE_LABEL.get(s['source'], s['source'])} {s['count']}" for s in refs["bySource"]
+        )
+        blocks.append(f"Nguồn: {detail}")
+
+    if refs["topReferrers"]:
+        rows = [
+            [r["name"] or "(không tên)", str(r["invited"])] for r in refs["topReferrers"][:5]
+        ]
+        blocks += ["", fmt.b("Mời được nhiều nhất") + fmt.table(["Người", "Đã mời"], rows)]
+
+    return "\n".join(blocks)
+
+
 def lifetime(fmt, stats: list[dict], game_type: str = "3cay") -> str:
     if not stats:
         return "Chưa có dữ liệu nào."

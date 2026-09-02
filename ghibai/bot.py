@@ -15,7 +15,9 @@ from .adapters.zalo_adapter import ZaloClient, ZaloError, ZaloWebhook
 from .config import Config, load_config
 from .core import Engine
 from .db import Database
+from .invite import InvitePages
 from .sheets import SheetExporter
+from .tracking import Tracker
 from .webapi import WebApi
 
 logger = logging.getLogger(__name__)
@@ -24,9 +26,26 @@ logger = logging.getLogger(__name__)
 async def run(config: Config) -> None:
     db = Database(config.db_path)
     exporter = SheetExporter(config.sa_json_path, config.sheet_tab_name)
+    tracker = Tracker(db, click_window_min=config.click_window_min)
     engine = Engine(
-        db, exporter, config.default_sheet_url, config.allowed_chats, config.web_public_url
+        db,
+        exporter,
+        config.default_sheet_url,
+        config.allowed_chats,
+        config.web_public_url,
+        tracker=tracker,
+        admin_ids=config.admin_ids,
+        bot_username=config.telegram_bot_username,
+        zalo_bot_link=config.zalo_bot_link,
     )
+
+    removed = db.prune_events(config.usage_retention_days)
+    if removed:
+        logger.info(
+            "Đã xóa %s dòng log lưu lượng cũ hơn %s ngày",
+            removed,
+            config.usage_retention_days,
+        )
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -43,7 +62,10 @@ async def run(config: Config) -> None:
         if config.telegram_token:
             telegram_app = telegram_adapter.build_application(config.telegram_token, engine)
             await telegram_app.initialize()
-            await telegram_adapter.setup(telegram_app)
+            # get_me() trong setup() la nguon chinh xac nhat cho username; env chi du phong.
+            engine.bot_username = (
+                await telegram_adapter.setup(telegram_app) or config.telegram_bot_username
+            )
             await telegram_app.start()
             await telegram_app.updater.start_polling(drop_pending_updates=True)
 
@@ -55,9 +77,10 @@ async def run(config: Config) -> None:
             )
 
         if config.needs_webserver:
-            api = WebApi(db) if config.web_ui else None
+            api = WebApi(db, config.admin_stats_token) if config.web_ui else None
+            invite = InvitePages(tracker, engine.bot_username, config.zalo_bot_link)
             runner = await webserver.start(
-                webserver.build_app(zalo_webhook, api, _web_dist(config)),
+                webserver.build_app(zalo_webhook, api, _web_dist(config), invite),
                 config.web_host,
                 config.web_port,
             )

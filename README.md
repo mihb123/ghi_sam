@@ -4,7 +4,7 @@
 [![React 19](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
 [![Tailwind CSS v4](https://img.shields.io/badge/Tailwind-v4-38bdf8.svg)](https://tailwindcss.com/)
 [![SQLite](https://img.shields.io/badge/Database-SQLite-003B57.svg)](https://sqlite.org/)
-[![Tests](https://img.shields.io/badge/Tests-139%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-188%20passed-brightgreen.svg)](tests/)
 
 Sổ ghi điểm điện tử tự động cho bàn **3 cây** và **Sâm (Sâm lốc)** ngoài đời. Gõ kết quả từng ván trực tiếp trong chat $\rightarrow$ lưu trữ SQLite $\rightarrow$ xem bảng tổng lũy kế ngay trong chat $\rightarrow$ xem realtime trên ứng dụng Web (PWA Mobile-First) $\rightarrow$ tự động export lên Google Sheets có format màu và freeze pane.
 
@@ -28,8 +28,9 @@ Chạy đồng thời **Telegram** (long polling) và **Zalo** (webhook + HMAC) 
 10. [Trang web xem trên điện thoại (PWA)](#trang-web-xem-trên-điện-thoại)
 11. [CLI quản trị Zalo](#cli-quản-lý-zalo)
 12. [Triển khai bằng Docker Compose](#triển-khai-bằng-docker)
-13. [Bảng biến môi trường (.env)](#biến-trong-env)
-14. [Kiến trúc Mã nguồn](#kiến-trúc)
+13. [Thống kê người dùng & nguồn giới thiệu](#thống-kê-người-dùng--nguồn-giới-thiệu)
+14. [Bảng biến môi trường (.env)](#biến-trong-env)
+15. [Kiến trúc Mã nguồn](#kiến-trúc)
 
 ---
 
@@ -114,6 +115,8 @@ Kết quả:     Hương -5 │ Hằng -10 │ Toàn +35 │ Thu -20      → t�
 | `/lichsu 10` | 10 ván gần nhất |
 | `/web` | Link xem bàn đang chơi trên điện thoại |
 | `/web doilink` | Đổi link nếu lỡ lọt ra ngoài nhóm |
+| `/chiase` · `/moi` | Lấy link mời bạn bè dùng bot (mỗi người một link riêng) |
+| `/thongke` | Thống kê người dùng & nguồn giới thiệu — **chỉ admin** |
 | `/sheet <link>` | Lưu link Google Sheet cho nhóm này |
 | `/export` | Ghi bàn đang chơi lên sheet |
 
@@ -295,6 +298,50 @@ docker compose logs -f bot
 
 ---
 
+## Thống kê người dùng & nguồn giới thiệu
+
+Bot đếm được có bao nhiêu người đang dùng, hôm nay ai còn dùng, và **người mới đến từ ai** — người mới không phải nhập mã hay trả lời câu hỏi nào.
+
+### Người share: một lệnh, một link
+
+```
+/chiase
+→ 🔗 Link mời bạn bè dùng bot
+  https://t.me/<bot>?start=r_AB12CD
+  Gửi link này cho bạn bè, họ bấm vào là dùng được ngay.
+  🌱 Đã có 3 người vào bot từ link của bạn.
+```
+
+Mỗi người có một mã riêng nằm trong link. Bạn bè bấm link $\rightarrow$ nhấn **Start** $\rightarrow$ dùng bot bình thường; bot ghi nhận nguồn im lặng, không hiện gì trong chat.
+
+Người dùng Zalo nhận link dạng `https://<WEB_PUBLIC_URL>/i/AB12CD` — một trang nhỏ trên server của bạn, vì Zalo Bot Platform **không hỗ trợ tham số trong link**.
+
+### Ba luật gán nguồn
+
+| Điều kiện | Nguồn | Độ tin cậy |
+|---|---|---|
+| Người mới bấm link `?start=r_MÃ` (kể cả `?startgroup=`, Telegram gửi `/start@bot r_MÃ` vào nhóm) | `link` | **chắc chắn** |
+| Người mới nhắn lần đầu trong chat đã có người dùng bot trước → quy về người xuất hiện sớm nhất ở chat đó | `group` | suy đoán |
+| Có **đúng một** mã được bấm ở `/i/<mã>` trong 30 phút gần nhất mà chưa ai nhận | `landing` | suy đoán |
+
+Luật 2 và 3 chỉ chạy với người hoàn toàn mới. Luật 1 chạy cả với người cũ, để nâng một bản ghi từ *suy đoán* lên *chắc chắn* khi họ bấm link thật. Bot không tự giới thiệu chính mình, không tạo vòng trong cây, và không ghi đè nguồn đã chắc chắn.
+
+> ⚠️ Số `suy đoán` là **phỏng đoán, không phải sự thật** — nhất là trên Zalo, nơi chỉ có mốc thời gian để ghép. Đọc thống kê thì tách riêng hai cột `chắc chắn` / `suy đoán`.
+
+### Xem số liệu
+
+- **`/thongke` trong chat** (chỉ `ADMIN_USER_IDS`): người dùng, DAU/MAU, nguồn giới thiệu, K-factor, top người mời. Ai chưa phải admin gõ vào sẽ được bot in ra `user_id` của họ để bạn dán vào `.env`.
+- **Trang `/admin?k=<ADMIN_STATS_TOKEN>`**: 3 tab (Tổng quan / Giới thiệu / Nhóm), biểu đồ 30 ngày và giờ cao điểm, bảng top người mời — cùng một PWA với trang xem bàn.
+- **`GET /api/stats?k=<ADMIN_STATS_TOKEN>`**: JSON thô, dùng chung nguồn số với `/thongke` nên hai chỗ không bao giờ lệch nhau.
+
+Thiếu `ADMIN_STATS_TOKEN` thì cả trang `/admin` và API đều trả 404.
+
+### Bot lưu những gì
+
+`bot_users`: id người dùng do nền tảng cấp, tên hiển thị, username (chỉ Telegram), mã giới thiệu, người giới thiệu, lần đầu/lần cuối thấy, số tin nhắn. `chat_members`: ai xuất hiện ở chat nào. `usage_events`: mỗi lệnh hoặc ván được ghi (không ghi tin nhắn tán gẫu, không lưu nội dung tin nhắn), tự xoá sau `USAGE_RETENTION_DAYS`. `ref_clicks`: mã + thời điểm + **hash** của User-Agent và IP, không lưu bản gốc.
+
+---
+
 ## Biến trong `.env`
 
 | Biến | Việc |
@@ -312,6 +359,12 @@ docker compose logs -f bot
 | `GOOGLE_SA_JSON` | Đường dẫn file JSON key của Service Account |
 | `DEFAULT_SHEET_URL` | Sheet dùng khi nhóm chưa tự set bằng `/sheet` |
 | `SHEET_TAB_NAME` | Tên tab bị ghi đè mỗi lần `/export` |
+| `ADMIN_USER_IDS` | Ai được gõ `/thongke`, dạng `telegram:123,zalo:abc`. Trống = không ai |
+| `ADMIN_STATS_TOKEN` | Token mở `/admin?k=…` và `/api/stats?k=…`. Trống = tắt hẳn cả hai |
+| `TELEGRAM_BOT_USERNAME` | Ghi đè username bot; thường không cần vì bot tự lấy bằng `getMe` |
+| `ZALO_BOT_LINK` | Link mở bot Zalo, để trang `/i/<mã>` biết chuyển tiếp đi đâu |
+| `REF_CLICK_WINDOW_MIN` | Cửa sổ ghép click trang mời với người dùng Zalo mới (mặc định 30 phút) |
+| `USAGE_RETENTION_DAYS` | Giữ log lưu lượng bao nhiêu ngày (mặc định 180) |
 | `DB_PATH` | File SQLite, tự tạo nếu chưa có |
 | `TZ` | Múi giờ cho cột `Giờ` (mặc định `Asia/Ho_Chi_Minh`) |
 | `DOCKER_UID` / `DOCKER_GID` | UID/GID host để container ghi được `./data` (`id -u` / `id -g`) |
@@ -334,8 +387,11 @@ Logic lệnh nằm trong [`ghibai/core.py`](ghibai/core.py) và **không biết 
 | [`ghibai/sheets.py`](ghibai/sheets.py) | Ghi Google Sheet + dịch lỗi quyền thành hướng dẫn |
 | [`ghibai/adapters/telegram_adapter.py`](ghibai/adapters/telegram_adapter.py) | Long polling Telegram |
 | [`ghibai/adapters/zalo_adapter.py`](ghibai/adapters/zalo_adapter.py) | Zalo API client + webhook (xác thực secret, chống ghi trùng) |
-| [`ghibai/webserver.py`](ghibai/webserver.py) | aiohttp: `/zalo/webhook`, `/api/board`, `/healthz`, file build của web |
-| [`ghibai/webapi.py`](ghibai/webapi.py) | Payload JSON cho trang web; xác thực bằng token trong link |
+| [`ghibai/webserver.py`](ghibai/webserver.py) | aiohttp: `/zalo/webhook`, `/api/board`, `/api/stats`, `/i/<mã>`, `/healthz`, file build của web |
+| [`ghibai/webapi.py`](ghibai/webapi.py) | Payload JSON cho trang web và trang thống kê; xác thực bằng token trong link |
+| [`ghibai/tracking.py`](ghibai/tracking.py) | Định danh người dùng + 3 luật gán nguồn giới thiệu |
+| [`ghibai/stats.py`](ghibai/stats.py) | Tổng hợp số liệu dùng chung cho `/thongke` và `/api/stats` |
+| [`ghibai/invite.py`](ghibai/invite.py) | Trang `/i/<mã>`: ghi log click rồi chuyển tiếp sang bot |
 | [`web/`](web/) | Trang web React + Vite + shadcn/ui, PWA, ưu tiên mobile |
 | [`ghibai/bot.py`](ghibai/bot.py) | Chạy song song cả hai nền tảng |
 | [`ghibai/cli.py`](ghibai/cli.py) | `ghibai-zalo` — quản lý webhook |
