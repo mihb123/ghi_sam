@@ -24,6 +24,12 @@ class Config:
     default_sheet_url: str | None
     sheet_tab_name: str
     allowed_chats: dict[str, frozenset[str]]
+    admin_ids: dict[str, frozenset[str]]
+    admin_stats_token: str | None
+    telegram_bot_username: str | None
+    zalo_bot_link: str | None
+    click_window_min: int
+    usage_retention_days: int
 
     @property
     def platforms(self) -> list[str]:
@@ -88,6 +94,12 @@ def load_config(env_file: str | os.PathLike[str] | None = None) -> Config:
             TELEGRAM: _parse_chat_ids("TELEGRAM_CHAT_ID"),
             ZALO: _parse_chat_ids("ZALO_CHAT_ID"),
         },
+        admin_ids=_parse_admin_ids("ADMIN_USER_IDS"),
+        admin_stats_token=_clean("ADMIN_STATS_TOKEN"),
+        telegram_bot_username=(_clean("TELEGRAM_BOT_USERNAME") or "").lstrip("@") or None,
+        zalo_bot_link=_clean("ZALO_BOT_LINK"),
+        click_window_min=int(_clean("REF_CLICK_WINDOW_MIN") or 30),
+        usage_retention_days=int(_clean("USAGE_RETENTION_DAYS") or 180),
     )
 
 
@@ -100,6 +112,18 @@ def _flag(name: str, default: bool) -> bool:
     if not raw:
         return default
     return raw not in ("0", "false", "no", "off", "tat", "tắt")
+
+
+# Dang "telegram:123,zalo:abc". Tach theo platform de mot id Telegram khong tinh la
+# admin ben Zalo. Rong = khong ai la admin, lenh /thongke tra ve huong dan kem user id.
+def _parse_admin_ids(name: str) -> dict[str, frozenset[str]]:
+    groups: dict[str, set[str]] = {TELEGRAM: set(), ZALO: set()}
+    raw = (os.getenv(name) or "").replace(";", ",")
+    for token in (t.strip() for t in raw.split(",")):
+        platform, _, user_id = token.partition(":")
+        if user_id and platform.strip().lower() in groups:
+            groups[platform.strip().lower()].add(user_id.strip())
+    return {platform: frozenset(ids) for platform, ids in groups.items()}
 
 
 # Rong = cho phep moi chat cua platform do.

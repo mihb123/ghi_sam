@@ -40,8 +40,9 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
-        // API va webhook phai di thang ra mang, khong duoc tra ve index.html.
-        navigateFallbackDenylist: [/^\/api\//, /^\/zalo\//, /^\/healthz$/],
+        // API, webhook va trang moi /i/<ma> phai di thang ra mang, khong duoc tra ve
+        // index.html - trang moi la HTML server-side, khong phai route cua SPA.
+        navigateFallbackDenylist: [/^\/api\//, /^\/zalo\//, /^\/healthz$/, /^\/i\//],
         runtimeCaching: [
           {
             // Mat song van xem duoc ban vua tai; co song thi luon uu tien du lieu moi.

@@ -11,12 +11,14 @@ dung prefix cua nen tang dang dung.
 import asyncio
 import re
 from dataclasses import dataclass
+from time import perf_counter
 
-from . import render
-from .db import Database, Player, Round, Session, chat_key
+from . import render, stats
+from .db import BotUser, Database, Player, Round, Session, chat_key
 from .parser import ParseError, looks_like_round, parse_round
 from .scoring import ScoringError, resolve_scores
 from .sheets import SheetError, SheetExporter, build_table, extract_key
+from .tracking import Tracker, split_payload
 
 from .text import normalize
 
@@ -30,6 +32,10 @@ class Incoming:
     chat_title: str | None
     text: str
     author: str | None = None
+    # Field moi phai nam sau author: nhieu cho dang dung Incoming(...) theo vi tri.
+    native_user_id: str | None = None
+    username: str | None = None
+    chat_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -39,6 +45,10 @@ class Ctx:
     key: str
     arg: str
     author: str | None
+    # None khi nen tang khong gui user id, hoac khi chua bat tracking.
+    user: BotUser | None = None
+    platform: str = "telegram"
+    native_user_id: str | None = None
 
     def cmd(self, name: str) -> str:
         return self.fmt.code(f"{self.fmt.prefix}{name}")
@@ -84,6 +94,9 @@ def help_text(ctx: Ctx, game_type: str = "3cay") -> str:
                 f"{p}web - link xem bàn đang chơi trên điện thoại",
                 f"{p}web doilink - đổi link nếu bị lộ ra ngoài nhóm",
                 "",
+                b("Chia sẻ"),
+                f"{p}chiase - lấy link mời bạn bè dùng bot",
+                "",
                 b("Google Sheet"),
                 f"{p}sheet [link] - lưu link sheet cho nhóm này",
                 f"{p}export - ghi bàn đang chơi lên sheet",
@@ -124,6 +137,9 @@ def help_text(ctx: Ctx, game_type: str = "3cay") -> str:
             f"{p}web - link xem bàn đang chơi trên điện thoại",
             f"{p}web doilink - đổi link nếu bị lộ ra ngoài nhóm",
             "",
+            b("Chia sẻ"),
+            f"{p}chiase - lấy link mời bạn bè dùng bot",
+            "",
             b("Google Sheet"),
             f"{p}sheet [link] - lưu link sheet cho nhóm này",
             f"{p}export - ghi bàn đang chơi lên sheet",
@@ -141,14 +157,24 @@ class Engine:
         default_sheet_url: str | None = None,
         allowed_chats: dict[str, frozenset[str]] | None = None,
         web_public_url: str | None = None,
+        tracker: Tracker | None = None,
+        admin_ids: dict[str, frozenset[str]] | None = None,
+        bot_username: str | None = None,
+        zalo_bot_link: str | None = None,
     ):
         self.db = db
         self.exporter = exporter
         self.default_sheet_url = default_sheet_url
         self.allowed_chats = allowed_chats or {}
         self.web_public_url = web_public_url
+        self.tracker = tracker
+        self.admin_ids = admin_ids or {}
+        # Lay tu get_me() luc khoi dong (xem telegram_adapter.setup), env chi la du phong.
+        self.bot_username = bot_username
+        self.zalo_bot_link = zalo_bot_link
 
     async def handle(self, msg: Incoming, fmt) -> list[str]:
+        # --- 1. PHAN TICH LENH & KIEM TRA QUYEN ---
         matched = _COMMAND.match(msg.text or "")
         name = matched.group("name").lower() if matched else None
 
@@ -159,27 +185,68 @@ class Engine:
 
         key = chat_key(msg.platform, msg.native_chat_id)
         self.db.ensure_chat(key, msg.platform, msg.native_chat_id, msg.chat_title)
+
+        arg = matched.group("arg").strip() if matched else (msg.text or "").strip()
+        # Deep link gui ma moi kem theo /start; phai tach truoc khi cmd_start doc arg,
+        # neu khong cmd_start se coi 'r_AB12CD' la ten the loai game.
+        payload = None
+        if name == "start":
+            payload, arg = split_payload(arg)
+
+        # --- 2. DINH DANH NGUOI DUNG & GAN NGUON GIOI THIEU ---
+        seen = self.tracker.see(msg, key) if self.tracker else None
+        if seen is not None and (seen.is_new or payload):
+            self.tracker.attribute(seen, key, payload)
+
         ctx = Ctx(
             db=self.db,
             fmt=fmt,
             key=key,
-            arg=matched.group("arg").strip() if matched else (msg.text or "").strip(),
+            arg=arg,
             author=msg.author,
+            user=seen.user if seen else None,
+            platform=msg.platform,
+            native_user_id=msg.native_user_id,
         )
 
+        # --- 3. CHAY HANDLER & GHI LOG LUU LUONG ---
         if name is None:
             roster = self.db.get_roster(key)
             if roster and looks_like_round(ctx.arg, roster):
-                return await self._record(ctx, ctx.arg)
+                return await self._run(ctx, msg, seen, "round", None, self._record(ctx, ctx.arg))
+            # Tin nhan tan gau trong nhom khong ghi log: chi cong msg_count o buoc 2.
             return []
 
         handler = HANDLERS.get(name)
         if handler is None:
+            self._log(msg, ctx, seen, "unknown_command", name, ok=False)
             return [
                 f"Không có lệnh {ctx.plain_cmd(name)}. Gõ {ctx.plain_cmd('help')} để xem "
                 "danh sách lệnh."
             ]
-        return await handler(self, ctx)
+        return await self._run(ctx, msg, seen, "command", name, handler(self, ctx))
+
+    async def _run(self, ctx: Ctx, msg: Incoming, seen, kind: str, name: str | None, work):
+        started = perf_counter()
+        replies = await work
+        # Handler nao cung tra ve text nen chi doc duoc thanh/bai qua dau mo dau: du de
+        # thong ke ti le lenh loi ma khong phai doi chu ky cua 20 handler.
+        ok = not replies or not replies[0].startswith(("❌", "⛔"))
+        self._log(msg, ctx, seen, kind, name, ok=ok, ms=int((perf_counter() - started) * 1000))
+        return replies
+
+    def _log(self, msg: Incoming, ctx: Ctx, seen, kind, name, ok=True, ms=None) -> None:
+        if self.tracker is None:
+            return
+        self.db.log_event(
+            platform=msg.platform,
+            kind=kind,
+            chat_key=ctx.key,
+            user_id=seen.user.id if seen else None,
+            command=name,
+            ok=ok,
+            ms=ms,
+        )
 
     # None = duoc phep. Rong nghia la cho phep moi chat cua nen tang do.
     def _reject_reason(self, msg: Incoming) -> str | None:
@@ -554,6 +621,55 @@ class Engine:
             f"ngoài nhóm; lỡ lộ thì gõ {ctx.plain_cmd('web')} doilink."
         ]
 
+    # --- CHIA SE & THONG KE ---
+
+    async def cmd_chiase(self, ctx: Ctx) -> list[str]:
+        if ctx.user is None:
+            return [
+                "Nền tảng này chưa gửi kèm thông tin người dùng nên bot chưa tạo được "
+                "link riêng cho bạn."
+            ]
+
+        code = f"r_{ctx.user.ref_code}"
+        if ctx.platform == "telegram":
+            if not self.bot_username:
+                return [
+                    "Chưa biết username của bot nên chưa dựng được link mời. "
+                    f"Đặt {ctx.fmt.code('TELEGRAM_BOT_USERNAME')} trong .env rồi khởi động "
+                    "lại bot."
+                ]
+            link = f"https://t.me/{self.bot_username}?start={code}"
+        else:
+            if not self.web_public_url:
+                return [
+                    "Chưa bật trang web nên chưa dựng được link mời. Đặt "
+                    f"{ctx.fmt.code('WEB_PUBLIC_URL')} trong .env rồi khởi động lại bot."
+                ]
+            link = f"{self.web_public_url.rstrip('/')}/i/{ctx.user.ref_code}"
+
+        invited = self.db.count_invited(ctx.user.id)
+        tail = (
+            f"\n\n🌱 Đã có {ctx.fmt.b(f'{invited} người')} vào bot từ link của bạn."
+            if invited
+            else ""
+        )
+        return [
+            f"🔗 {ctx.fmt.b('Link mời bạn bè dùng bot')}\n{ctx.fmt.esc(link)}\n\n"
+            f"Gửi link này cho bạn bè, họ bấm vào là dùng được ngay.{tail}"
+        ]
+
+    async def cmd_thongke(self, ctx: Ctx) -> list[str]:
+        allowed = self.admin_ids.get(ctx.platform) or frozenset()
+        if not allowed or (ctx.native_user_id or "") not in allowed:
+            who = ctx.native_user_id or "(nền tảng này chưa gửi user id)"
+            return [
+                "⛔ Lệnh này chỉ dành cho người quản trị bot.\n"
+                f"user_id của bạn là: {ctx.fmt.esc(who)}\n"
+                f"Thêm {ctx.fmt.code(f'{ctx.platform}:{who}')} vào "
+                f"{ctx.fmt.code('ADMIN_USER_IDS')} trong .env rồi khởi động lại bot."
+            ]
+        return [render.stats(ctx.fmt, stats.overview(self.db))]
+
     # --- GOOGLE SHEET ---
 
     async def cmd_sheet(self, ctx: Ctx) -> list[str]:
@@ -640,6 +756,11 @@ HANDLERS = {
     "lichsu": Engine.cmd_lichsu,
     "web": Engine.cmd_web,
     "link": Engine.cmd_web,
+    "chiase": Engine.cmd_chiase,
+    "moi": Engine.cmd_chiase,
+    "share": Engine.cmd_chiase,
+    "thongke": Engine.cmd_thongke,
+    "stats": Engine.cmd_thongke,
     "sheet": Engine.cmd_sheet,
     "export": Engine.cmd_export,
 }

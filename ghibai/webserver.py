@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 ZALO_WEBHOOK_PATH = "/zalo/webhook"
 BOARD_API_PATH = "/api/board"
+STATS_API_PATH = "/api/stats"
+INVITE_PATH = "/i/{code}"
 
 # Vite bam hash vao ten file trong assets/ nen cache vinh vien duoc. index.html va service
 # worker thi khong: cache chung se lam user ket o ban cu sau moi lan deploy.
@@ -20,13 +22,18 @@ IMMUTABLE = "public, max-age=31536000, immutable"
 NO_CACHE = "no-cache"
 
 
-def build_app(zalo_webhook=None, api=None, dist: Path | None = None) -> web.Application:
+def build_app(
+    zalo_webhook=None, api=None, dist: Path | None = None, invite=None
+) -> web.Application:
     app = web.Application()
     app.router.add_get("/healthz", _healthz)
     if zalo_webhook is not None:
         app.router.add_post(ZALO_WEBHOOK_PATH, zalo_webhook.handle)
     if api is not None:
         app.router.add_get(BOARD_API_PATH, api.board)
+        app.router.add_get(STATS_API_PATH, api.stats)
+    if invite is not None:
+        app.router.add_get(INVITE_PATH, invite.page)
     # Phai dang ky cuoi cung: route bat-tat-ca nay nuot moi duong dan chua khop o tren.
     if dist is not None:
         app.router.add_get("/{tail:.*}", _spa(dist))

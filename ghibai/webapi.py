@@ -7,18 +7,21 @@ tai ban nao hay khong.
 Tra ve dung 1 payload cho ca man hinh de trang web chi phai goi 1 request khi refresh.
 """
 
+import hmac
 from datetime import datetime, timezone
 
 from aiohttp import web
 
+from . import stats
 from .db import Database, Player, Round, Session
 
 TOKEN_QUERY = "k"
 
 
 class WebApi:
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, admin_token: str | None = None):
         self.db = db
+        self.admin_token = admin_token
 
     # Luon tra du moi key (mang rong khi chua co ban) de trang web khong phai doan kieu.
     async def board(self, request: web.Request) -> web.Response:
@@ -41,6 +44,17 @@ class WebApi:
                 "fetchedAt": _now(),
             }
         )
+
+    # Cung 1 payload voi lenh /thongke (xem stats.overview) de hai cho khong lech so.
+    async def stats(self, request: web.Request) -> web.Response:
+        supplied = (request.query.get(TOKEN_QUERY) or "").strip()
+        # Chua dat ADMIN_STATS_TOKEN = tat han endpoint. Tra 404 chu khong 401, giong
+        # /api/board: nguoi la khong can biet endpoint nay co ton tai hay khong.
+        if not self.admin_token or not hmac.compare_digest(supplied, self.admin_token):
+            raise web.HTTPNotFound(
+                text='{"error": "Không tìm thấy."}', content_type="application/json"
+            )
+        return web.json_response(stats.overview(self.db))
 
     def _authenticate(self, request: web.Request) -> dict:
         token = (request.query.get(TOKEN_QUERY) or "").strip()

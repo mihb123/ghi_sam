@@ -50,6 +50,86 @@ export type Board = {
   fetchedAt: string
 }
 
+// --- THONG KE (/api/stats, khop voi ghibai/stats.py) ---
+
+export type StatsTotals = {
+  users: number
+  chats: number
+  sessions: number
+  rounds: number
+  events: number
+}
+
+export type StatsUsers = {
+  newToday: number
+  new7d: number
+  new30d: number
+  /** Active = co it nhat 1 lenh / 1 van trong ky, khong tinh tin nhan tan gau. */
+  dau: number
+  wau: number
+  mau: number
+}
+
+export type PlatformStat = {
+  platform: string
+  users: number
+  new7d: number
+  chats: number
+  dau: number
+}
+
+export type DailyPoint = {
+  day: string
+  events: number
+  activeUsers: number
+  newUsers: number
+}
+
+export type Referrals = {
+  attributed: number
+  /** Bam link that (deep link Telegram) - chac chan. */
+  exact: number
+  /** Suy ra tu cung nhom hoac tu click trang moi - khong chac chan. */
+  inferred: number
+  inviters: number
+  kFactor: number
+  bySource: { source: string; count: number }[]
+  topReferrers: {
+    name: string | null
+    platform: string
+    code: string
+    invited: number
+  }[]
+  recent: {
+    invitee: string | null
+    inviter: string | null
+    platform: string
+    source: string
+    confidence: string
+    at: string | null
+  }[]
+}
+
+export type ChatStat = {
+  title: string | null
+  platform: string
+  members: number
+  rounds: number
+  lastActiveAt: string | null
+}
+
+export type Stats = {
+  generatedAt: string
+  totals: StatsTotals
+  users: StatsUsers
+  byPlatform: PlatformStat[]
+  daily: DailyPoint[]
+  hourly: { hour: number; events: number }[]
+  referrals: Referrals
+  topCommands: { command: string; count: number }[]
+  topChats: ChatStat[]
+}
+
 export class ApiError extends Error {
   status: number
 
@@ -73,6 +153,21 @@ export async function fetchBoard(
     throw new ApiError(response.status, await errorMessage(response))
   }
   return (await response.json()) as Board
+}
+
+export async function fetchStats(
+  token: string,
+  signal?: AbortSignal
+): Promise<Stats> {
+  const response = await fetch(`/api/stats?k=${encodeURIComponent(token)}`, {
+    signal,
+    headers: { Accept: "application/json" },
+  })
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await errorMessage(response))
+  }
+  return (await response.json()) as Stats
 }
 
 async function errorMessage(response: Response): Promise<string> {

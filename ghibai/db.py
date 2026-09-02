@@ -9,12 +9,17 @@ import json
 import secrets
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .text import normalize
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
+
+# Bo 0/O/1/I/L de doc qua dien thoai khong nham; ma nay nam trong link chia se nen phai
+# de doc lai bang mat.
+CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+CODE_LENGTH = 6
 
 SCHEMA = [
     """
@@ -74,10 +79,68 @@ SCHEMA = [
         PRIMARY KEY (round_id, player_id)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS bot_users (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        platform       TEXT NOT NULL,
+        native_user_id TEXT NOT NULL,
+        display_name   TEXT,
+        username       TEXT,
+        ref_code       TEXT NOT NULL UNIQUE,
+        referred_by    INTEGER REFERENCES bot_users(id),
+        ref_source     TEXT,
+        ref_confidence TEXT,
+        referred_at    TEXT,
+        first_chat_key TEXT,
+        first_seen_at  TEXT NOT NULL,
+        last_seen_at   TEXT NOT NULL,
+        msg_count      INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (platform, native_user_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS chat_members (
+        chat_key      TEXT NOT NULL REFERENCES chats(chat_key) ON DELETE CASCADE,
+        user_id       INTEGER NOT NULL REFERENCES bot_users(id) ON DELETE CASCADE,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at  TEXT NOT NULL,
+        msg_count     INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (chat_key, user_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS usage_events (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        at       TEXT NOT NULL,
+        day      TEXT NOT NULL,
+        hour     INTEGER NOT NULL,
+        platform TEXT NOT NULL,
+        chat_key TEXT,
+        user_id  INTEGER REFERENCES bot_users(id) ON DELETE SET NULL,
+        kind     TEXT NOT NULL,
+        command  TEXT,
+        ok       INTEGER NOT NULL DEFAULT 1,
+        ms       INTEGER
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS ref_clicks (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        ref_code   TEXT NOT NULL,
+        at         TEXT NOT NULL,
+        ua_hash    TEXT,
+        claimed_by INTEGER REFERENCES bot_users(id),
+        claimed_at TEXT
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS idx_rounds_session ON rounds(session_id, seq)",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_chats_web_token ON chats(web_token) "
     "WHERE web_token IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_sessions_chat ON sessions(chat_key, ended_at)",
+    "CREATE INDEX IF NOT EXISTS idx_users_referred_by ON bot_users(referred_by)",
+    "CREATE INDEX IF NOT EXISTS idx_usage_day ON usage_events(day, platform)",
+    "CREATE INDEX IF NOT EXISTS idx_usage_user ON usage_events(user_id, at)",
+    "CREATE INDEX IF NOT EXISTS idx_clicks_open ON ref_clicks(claimed_by, at)",
 ]
 
 
@@ -114,8 +177,28 @@ class Round:
     scores: dict[int, int] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class BotUser:
+    id: int
+    platform: str
+    native_user_id: str
+    display_name: str | None
+    ref_code: str
+    referred_by: int | None
+    ref_source: str | None
+    ref_confidence: str | None
+    first_chat_key: str | None
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+
+
+# So sanh moc thoi gian bang chuoi ISO: chi dung duoc khi moi moc cung offset, nen moc
+# cat luon phai di qua dung ham nay chu khong tu ghep tay.
+def _ago(**delta) -> str:
+    moment = datetime.now(timezone.utc).astimezone() - timedelta(**delta)
+    return moment.isoformat(timespec="seconds")
 
 
 class Database:
@@ -548,3 +631,193 @@ class Database:
             (key,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    # --- TRACKING: NGUOI DUNG ---
+
+    # Tra ve (user, la_nguoi_moi). Co la_nguoi_moi vi luat gan nguon gioi thieu chi chay
+    # dung mot lan, ngay lan dau thay user do.
+    def upsert_user(
+        self,
+        platform: str,
+        native_user_id: str,
+        display_name: str | None = None,
+        username: str | None = None,
+        chat_key: str | None = None,
+    ) -> tuple[BotUser, bool]:
+        row = self.conn.execute(
+            "SELECT * FROM bot_users WHERE platform = ? AND native_user_id = ?",
+            (platform, native_user_id),
+        ).fetchone()
+
+        if row is not None:
+            # COALESCE: Zalo doi khi khong gui display_name, khong de tin thieu ghi de ten cu.
+            self.conn.execute(
+                "UPDATE bot_users SET last_seen_at = ?, msg_count = msg_count + 1, "
+                "display_name = COALESCE(?, display_name), username = COALESCE(?, username) "
+                "WHERE id = ?",
+                (_now(), display_name, username, row["id"]),
+            )
+            self.conn.commit()
+            return self._to_user(self.conn.execute(
+                "SELECT * FROM bot_users WHERE id = ?", (row["id"],)
+            ).fetchone()), False
+
+        cur = self.conn.execute(
+            "INSERT INTO bot_users (platform, native_user_id, display_name, username, ref_code, "
+            "                       first_chat_key, first_seen_at, last_seen_at, msg_count) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            (
+                platform,
+                native_user_id,
+                display_name,
+                username,
+                self._new_ref_code(),
+                chat_key,
+                _now(),
+                _now(),
+            ),
+        )
+        self.conn.commit()
+        return self.user(cur.lastrowid), True
+
+    def user(self, user_id: int) -> BotUser | None:
+        row = self.conn.execute("SELECT * FROM bot_users WHERE id = ?", (user_id,)).fetchone()
+        return self._to_user(row) if row else None
+
+    def user_by_code(self, code: str) -> BotUser | None:
+        row = self.conn.execute(
+            "SELECT * FROM bot_users WHERE ref_code = ?", (code.strip().upper(),)
+        ).fetchone()
+        return self._to_user(row) if row else None
+
+    def user_by_native_id(self, platform: str, native_user_id: str) -> BotUser | None:
+        row = self.conn.execute(
+            "SELECT * FROM bot_users WHERE platform = ? AND native_user_id = ?",
+            (platform, native_user_id),
+        ).fetchone()
+        return self._to_user(row) if row else None
+
+    def set_referrer(self, user_id: int, inviter_id: int, source: str, confidence: str) -> None:
+        self.conn.execute(
+            "UPDATE bot_users SET referred_by = ?, ref_source = ?, ref_confidence = ?, "
+            "referred_at = ? WHERE id = ?",
+            (inviter_id, source, confidence, _now(), user_id),
+        )
+        self.conn.commit()
+
+    def count_invited(self, user_id: int) -> int:
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM bot_users WHERE referred_by = ?", (user_id,)
+        ).fetchone()
+        return row["n"]
+
+    def _new_ref_code(self) -> str:
+        for _ in range(20):
+            code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
+            taken = self.conn.execute(
+                "SELECT 1 FROM bot_users WHERE ref_code = ?", (code,)
+            ).fetchone()
+            if taken is None:
+                return code
+        raise RuntimeError("Không sinh được mã giới thiệu mới sau 20 lần thử.")
+
+    @staticmethod
+    def _to_user(row: sqlite3.Row) -> BotUser:
+        return BotUser(
+            id=row["id"],
+            platform=row["platform"],
+            native_user_id=row["native_user_id"],
+            display_name=row["display_name"],
+            ref_code=row["ref_code"],
+            referred_by=row["referred_by"],
+            ref_source=row["ref_source"],
+            ref_confidence=row["ref_confidence"],
+            first_chat_key=row["first_chat_key"],
+        )
+
+    # --- TRACKING: THANH VIEN CHAT ---
+
+    def touch_member(self, chat_key: str, user_id: int) -> None:
+        self.conn.execute(
+            "INSERT INTO chat_members (chat_key, user_id, first_seen_at, last_seen_at, msg_count) "
+            "VALUES (?, ?, ?, ?, 1) "
+            "ON CONFLICT(chat_key, user_id) DO UPDATE SET last_seen_at = excluded.last_seen_at, "
+            "msg_count = chat_members.msg_count + 1",
+            (chat_key, user_id, _now(), _now()),
+        )
+        self.conn.commit()
+
+    # Nguoi dung bot som nhat trong chat nay. Trong nhom day chinh la nguoi da mang bot
+    # vao (ho luon la nguoi go lenh dau tien), nen dung lam nguoi gioi thieu suy doan.
+    def earliest_member(self, chat_key: str, exclude_user_id: int | None = None) -> int | None:
+        row = self.conn.execute(
+            "SELECT user_id FROM chat_members WHERE chat_key = ? AND user_id IS NOT ? "
+            "ORDER BY first_seen_at, user_id LIMIT 1",
+            (chat_key, exclude_user_id),
+        ).fetchone()
+        return row["user_id"] if row else None
+
+    # --- TRACKING: LOG LUU LUONG ---
+
+    def log_event(
+        self,
+        platform: str,
+        kind: str,
+        chat_key: str | None = None,
+        user_id: int | None = None,
+        command: str | None = None,
+        ok: bool = True,
+        ms: int | None = None,
+    ) -> None:
+        now = datetime.now(timezone.utc).astimezone()
+        self.conn.execute(
+            "INSERT INTO usage_events (at, day, hour, platform, chat_key, user_id, kind, "
+            "                          command, ok, ms) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                now.isoformat(timespec="seconds"),
+                now.strftime("%Y-%m-%d"),
+                now.hour,
+                platform,
+                chat_key,
+                user_id,
+                kind,
+                command,
+                int(ok),
+                ms,
+            ),
+        )
+        self.conn.commit()
+
+    def prune_events(self, days: int) -> int:
+        cur = self.conn.execute("DELETE FROM usage_events WHERE at < ?", (_ago(days=days),))
+        self.conn.commit()
+        return cur.rowcount
+
+    # --- TRACKING: CLICK LINK MOI ---
+
+    def add_click(self, ref_code: str, ua_hash: str | None = None) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO ref_clicks (ref_code, at, ua_hash) VALUES (?, ?, ?)",
+            (ref_code.strip().upper(), _now(), ua_hash),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    # Cac ma da duoc bam trong cua so thoi gian ma chua ai nhan. Tra ve nhieu hon 1 ma
+    # nghia la nhap nhang - ben goi phai tu bo qua chu khong duoc doan bua.
+    def pending_click_codes(self, window_min: int) -> list[str]:
+        rows = self.conn.execute(
+            "SELECT DISTINCT ref_code FROM ref_clicks "
+            "WHERE claimed_by IS NULL AND at >= ? ORDER BY ref_code",
+            (_ago(minutes=window_min),),
+        ).fetchall()
+        return [r["ref_code"] for r in rows]
+
+    def claim_click(self, ref_code: str, user_id: int, window_min: int) -> None:
+        self.conn.execute(
+            "UPDATE ref_clicks SET claimed_by = ?, claimed_at = ? "
+            "WHERE claimed_by IS NULL AND ref_code = ? AND at >= ?",
+            (user_id, _now(), ref_code.strip().upper(), _ago(minutes=window_min)),
+        )
+        self.conn.commit()

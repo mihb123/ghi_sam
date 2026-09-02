@@ -48,6 +48,8 @@ flowchart TD
         PARSER["Bộ phân tích cú pháp ván<br/>(ghibai/parser.py)"]
         SCORING["Bộ tính điểm Zero-sum<br/>(ghibai/scoring.py)"]
         RENDER["Bộ định dạng tin nhắn<br/>(ghibai/render.py)"]
+        TRACK["Định danh user + gán nguồn<br/>(ghibai/tracking.py)"]
+        STATS["Tổng hợp thống kê<br/>(ghibai/stats.py)"]
     end
 
     subgraph Storage["Lớp Lưu trữ (Persistence)"]
@@ -58,6 +60,9 @@ flowchart TD
     ZL -->|POST /zalo/webhook| HTTP --> ZLA
     ZLA -->|REST API sendMessage| ZL
     WEB -->|GET /api/board?k=token| HTTP --> WAPI
+    ADMIN["Trang /admin<br/>(thống kê, cùng PWA)"] -->|GET /api/stats?k=token| HTTP
+    NEW["Người mới bấm link mời"] -->|GET /i/&lt;mã&gt;| HTTP --> INV["Trang mời<br/>(ghibai/invite.py)"]
+    INV -->|302 sang bot| TG
 
     TGA --> ENG
     ZLA --> ENG
@@ -66,6 +71,10 @@ flowchart TD
 
     ENG --> PARSER --> SCORING
     ENG --> RENDER
+    ENG --> TRACK --> DB
+    ENG --> STATS --> DB
+    INV --> TRACK
+    WAPI --> STATS
     ENG --> DB
     ENG --> EXP
 ```
@@ -84,6 +93,10 @@ flowchart TD
 | **SQLite Schema, Migrations & Truy vấn** | [`ghibai/db.py`](file:///home/dell/ghi_bai/ghibai/db.py) | [`Database`](file:///home/dell/ghi_bai/ghibai/db.py#L119-L539), [`SCHEMA`](file:///home/dell/ghi_bai/ghibai/db.py#L19-L80), [`chat_key()`](file:///home/dell/ghi_bai/ghibai/db.py#L83-L85), [`_repair_dangling_refs()`](file:///home/dell/ghi_bai/ghibai/db.py#L209-L245) |
 | **Định dạng bảng tin nhắn Telegram vs Zalo** | [`ghibai/render.py`](file:///home/dell/ghi_bai/ghibai/render.py) | [`TelegramFmt`](file:///home/dell/ghi_bai/ghibai/render.py#L26-L58), [`ZaloFmt`](file:///home/dell/ghi_bai/ghibai/render.py#L60-L95), [`standings()`](file:///home/dell/ghi_bai/ghibai/render.py#L150-L160), [`history()`](file:///home/dell/ghi_bai/ghibai/render.py#L162-L173) |
 | **Export Google Sheet, tô màu chương, freeze pane** | [`ghibai/sheets.py`](file:///home/dell/ghi_bai/ghibai/sheets.py) | [`SheetExporter`](file:///home/dell/ghi_bai/ghibai/sheets.py#L41-L208), [`build_table()`](file:///home/dell/ghi_bai/ghibai/sheets.py#L227-L250), [`_format_requests()`](file:///home/dell/ghi_bai/ghibai/sheets.py#L101-L187) |
+| **Định danh người dùng & gán nguồn giới thiệu** | [`ghibai/tracking.py`](file:///home/dell/ghi_bai/ghibai/tracking.py) | `Tracker.see()`, `Tracker.attribute()`, `Tracker.note_click()`, `split_payload()`, `PAYLOAD` |
+| **Tổng hợp số liệu thống kê (DAU/MAU, K-factor)** | [`ghibai/stats.py`](file:///home/dell/ghi_bai/ghibai/stats.py) | `overview()`, `_users()`, `_referrals()`, `_daily()` |
+| **Trang mời `/i/<mã>` (ghi log click, chuyển tiếp bot)** | [`ghibai/invite.py`](file:///home/dell/ghi_bai/ghibai/invite.py) | `InvitePages.page()`, `_links()`, `_shell()` |
+| **Trang thống kê `/admin` (React)** | [`web/src/components/admin/`](file:///home/dell/ghi_bai/web/src/components/admin/) | `AdminApp`, `BarChart`, `ReferralPanel`, `StatTile` |
 | **API REST `/api/board` phục vụ Web** | [`ghibai/webapi.py`](file:///home/dell/ghi_bai/ghibai/webapi.py) | [`WebApi.board()`](file:///home/dell/ghi_bai/ghibai/webapi.py#L24-L44), [`_authenticate()`](file:///home/dell/ghi_bai/ghibai/webapi.py#L45-L54) |
 | **HTTP Server Aiohttp (Webhook + Web + SPA static)** | [`ghibai/webserver.py`](file:///home/dell/ghi_bai/ghibai/webserver.py) | [`build_app()`](file:///home/dell/ghi_bai/ghibai/webserver.py#L23-L34), [`_spa()`](file:///home/dell/ghi_bai/ghibai/webserver.py#L41-L59), [`start()`](file:///home/dell/ghi_bai/ghibai/webserver.py#L71-L77) |
 | **Telegram Polling & Đăng ký menu lệnh** | [`ghibai/adapters/telegram_adapter.py`](file:///home/dell/ghi_bai/ghibai/adapters/telegram_adapter.py) | [`build_application()`](file:///home/dell/ghi_bai/ghibai/adapters/telegram_adapter.py#L42-L48), [`setup()`](file:///home/dell/ghi_bai/ghibai/adapters/telegram_adapter.py#L50-L70), [`_on_message()`](file:///home/dell/ghi_bai/ghibai/adapters/telegram_adapter.py#L72-L94) |
@@ -113,6 +126,9 @@ flowchart TD
 │   ├── config.py                 # Load và xác thực biến môi trường từ .env
 │   ├── core.py                   # Bộ máy xử lý lệnh và nghiệp vụ (không phụ thuộc platform)
 │   ├── db.py                     # SQLite access layer, schema migrations, models
+│   ├── invite.py                 # Trang /i/<ma>: ghi log click roi chuyen tiep sang bot
+│   ├── stats.py                  # Tong hop so lieu cho /thongke va /api/stats
+│   ├── tracking.py               # Dinh danh nguoi dung + 3 luat gan nguon gioi thieu
 │   ├── parser.py                 # Phân tích tin nhắn điểm ván (vị trí hoặc theo tên)
 │   ├── render.py                 # Định dạng tin nhắn phản hồi (Telegram HTML vs Zalo block)
 │   ├── scoring.py                # Tính toán điểm zero-sum cho người cầm chương
@@ -136,17 +152,27 @@ flowchart TD
 │   │   │   ├── rounds-view.tsx   # Chi tiết từng ván (Thẻ ở Mobile, Bảng ở Desktop)
 │   │   │   ├── settings-dialog.tsx# Dialog cấu hình: đổi token link, giao diện sáng/tối
 │   │   │   ├── theme-provider.tsx# Quản lý theme (light / dark / system)
+│   │   │   ├── admin/            # Trang /admin: KPI, biểu đồ, bảng người mời
+│   │   │   │   ├── admin-app.tsx # Layout + 3 tab Tổng quan / Giới thiệu / Nhóm
+│   │   │   │   ├── bar-chart.tsx # Biểu đồ cột bằng div thuần (không thêm thư viện)
+│   │   │   │   ├── referral-panel.tsx # Top người mời + lịch sử gán nguồn
+│   │   │   │   └── stat-tile.tsx # Thẻ số liệu KPI (2 cột mobile → 4 cột tablet)
 │   │   │   └── ui/               # Base shadcn/ui components (button, card, table...)
 │   │   ├── hooks/
-│   │   │   └── use-board.ts      # Custom hook quản lý fetch dữ liệu, cache và polling
+│   │   │   ├── use-board.ts      # Custom hook quản lý fetch dữ liệu, cache và polling
+│   │   │   └── use-stats.ts      # Hook fetch /api/stats cho trang /admin
 │   │   └── lib/
 │   │       ├── api.ts            # TypeScript interfaces khớp API backend
 │   │       ├── format.ts         # Hàm format số signed (+5, -3), ngày giờ HH:mm
 │   │       ├── settings.ts       # Quản lý local preferences
+│   │       ├── admin-token.ts    # Token quản trị trong URL (/admin?k=) và localStorage
 │   │       ├── token.ts          # Quản lý token xác thực trong URL (?k=) và localStorage
 │   │       └── utils.ts          # Tiện ích gộp class Tailwind (clsx + twMerge)
 │   └── public/                   # PWA Icons & manifest assets
-├── tests/                        # Toàn bộ test suite (Pytest - 134 test cases)
+├── tests/                        # Toàn bộ test suite (Pytest - 188 test cases)
+│   ├── test_tracking.py          # 3 luat gan nguon gioi thieu + guard chong sai du lieu
+│   ├── test_stats.py             # DAU/MAU, K-factor, chuoi 30 ngay
+│   ├── test_invite.py            # Trang /i/<ma>, log click, API /api/stats
 │   ├── conftest.py               # Fixtures dùng chung
 │   ├── test_core.py              # Test logic xử lý lệnh bot, session, roster
 │   ├── test_db.py                # Test CRUD SQLite, rounds, voiding, stats
@@ -227,6 +253,8 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 ---
 
 ### 4.5. Trang Web Mobile-First & PWA Dashboard
+
+> Cùng một bản build PWA phục vụ 2 trang: `/` (xem bàn đang chơi, token `?k=` của từng nhóm) và `/admin` (thống kê, token `ADMIN_STATS_TOKEN`). Không dùng router — `web/src/main.tsx` chọn component theo `window.location.pathname` vì server đã trả `index.html` cho mọi đường dẫn.
 - **Kiến trúc**: Xây dựng bằng React + Vite + Tailwind CSS v4 + shadcn/ui ([`web/`](file:///home/dell/ghi_bai/web)).
 - **Chỉ đọc (Read-only)**: Trang web hoàn toàn không có tính năng chỉnh sửa điểm để đảm bảo an toàn, mọi thay đổi phải xuất phát từ trong nhóm chat.
 - **Xác thực bảo mật qua Token URL**: Mỗi phòng chat có một `web_token` ngẫu nhiên ([`ghibai/db.py:reset_web_token`](file:///home/dell/ghi_bai/ghibai/db.py#L278-L283)). Link có dạng `https://domain/?k=<token>`. Khi link bị lộ ra ngoài nhóm, dùng lệnh `/web doilink` để hủy token cũ ngay lập tức.
@@ -266,6 +294,34 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 
 ---
 
+### 4.8. Định danh Người dùng, Tracking Giới thiệu & Thống kê
+
+Mục tiêu thiết kế: **người share chỉ gõ 1 lệnh, người mới chỉ bấm 1 link** — không ai phải nhập mã hay trả lời câu hỏi nào, và bot không hiện gì trong chat khi ghi nhận nguồn.
+
+**Định danh** ([`ghibai/tracking.py:Tracker.see`](file:///home/dell/ghi_bai/ghibai/tracking.py)): mọi tin nhắn đều upsert `bot_users` (theo `platform` + `native_user_id`) và `chat_members`. Nếu payload không có user id (event lạ, hoặc nền tảng không gửi), `see()` trả `None` và toàn bộ phần tracking bị bỏ qua — **bot chạy y như trước khi có tính năng này**.
+
+**Ba luật gán nguồn**, ưu tiên từ trên xuống, chỉ chạy khi gặp `native_user_id` chưa từng thấy:
+
+| # | Điều kiện | `ref_source` | `ref_confidence` |
+|---|---|---|---|
+| 1 | Tin nhắn đầu là `/start r_AB12CD` — deep link Telegram `?start=` (chat riêng) hoặc `?startgroup=` (trong nhóm, Telegram gửi `/start@bot r_AB12CD`) | `link` | `exact` |
+| 2 | Nhắn lần đầu trong chat đã có người dùng bot trước → quy về người xuất hiện sớm nhất (`Database.earliest_member`) | `group` | `inferred` |
+| 3 | Có **đúng một** mã được bấm ở `/i/<mã>` trong `REF_CLICK_WINDOW_MIN` phút mà chưa ai nhận | `landing` | `inferred` |
+
+- Luật 1 & 2 gộp được vì regex `_COMMAND` trong [`ghibai/core.py`](file:///home/dell/ghi_bai/ghibai/core.py) đã bỏ phần `@bot`, nên `/start` và `/start@bot` đi cùng một đường code.
+- Luật 2 và 3 **chỉ chạy với người hoàn toàn mới**; luật 1 chạy cả với người cũ để nâng một bản ghi từ `inferred` lên `exact` khi họ bấm link thật.
+- Luật 3 tha bỏ hơn là đoán bừa: nhiều hơn 1 mã trong cửa sổ nghĩa là nhập nhằng → không gán ai.
+
+**Guard chống dữ liệu rác** ([`Tracker._accept`](file:///home/dell/ghi_bai/ghibai/tracking.py)): không tự giới thiệu chính mình; không ghi đè nguồn đã có (trừ nâng `inferred` → `exact`); dò vòng lặp bằng cách đi lên cây tối đa `MAX_CHAIN = 20` bậc trước khi ghi — cây thành vòng thì mọi truy vấn đi lên cây sẽ treo.
+
+**Tách payload khỏi `/start`**: [`split_payload()`](file:///home/dell/ghi_bai/ghibai/tracking.py) phải chạy **trước** khi `cmd_start` đọc `arg`, nếu không `cmd_start` sẽ coi `r_AB12CD` là tên thể loại game.
+
+**Log lưu lượng**: `Engine._run()` chỉ ghi `usage_events` khi bot **thực sự hành động** (lệnh khớp handler, hoặc ghi được một ván). Tin nhắn tán gẫu trong nhóm chỉ cộng `msg_count` — vừa đúng nghĩa "người dùng đang hoạt động", vừa không làm phình bảng log. Cờ `ok` đọc từ ký tự mở đầu của câu trả lời (`❌`/`⛔`) để thống kê tỉ lệ lệnh lỗi mà không phải đổi chữ ký của hơn 20 handler.
+
+**Quyền riêng tư**: không lưu nội dung tin nhắn; `ref_clicks` chỉ lưu `sha256(User-Agent + IP)` cắt 16 ký tự chứ không lưu bản gốc; `usage_events` tự xóa sau `USAGE_RETENTION_DAYS` ngày.
+
+---
+
 ## 5. Từ điển Lệnh Bot (Command Reference)
 
 > **Ghi chú về Prefix**: Telegram sử dụng prefix `/`, Zalo sử dụng prefix `#` (do Zalo không có popup gợi ý lệnh dạng `/`). Cả hai nền tảng đều chấp nhận cả `/` và `#`.
@@ -290,6 +346,8 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 | `/tong` | `#tong` | Không | Xem bảng tổng điểm lũy kế của bàn đang chơi | `/tong` | [`ghibai/core.py:cmd_tong`](file:///home/dell/ghi_bai/ghibai/core.py#L512-L526) |
 | `/lichsu` | `#lichsu` | `[số_lượng]` | Xem chi tiết các ván gần nhất (mặc định 15 ván) | `/lichsu 10` | [`ghibai/core.py:cmd_lichsu`](file:///home/dell/ghi_bai/ghibai/core.py#L527-L538) |
 | `/web` · `/link` | `#web` · `#link` | `[doilink]` | Lấy link xem bàn chơi trên web hoặc đổi token mới | `/web` hoặc `/web doilink` | [`ghibai/core.py:cmd_web`](file:///home/dell/ghi_bai/ghibai/core.py#L544-L564) |
+| `/chiase` · `/moi` · `/share` | `#chiase` · `#moi` | Không | Lấy link mời riêng của người gõ (Telegram: deep link `?start=r_MÃ`; Zalo: trang `/i/<mã>`) | `/chiase` | [`ghibai/core.py:cmd_chiase`](file:///home/dell/ghi_bai/ghibai/core.py) |
+| `/thongke` · `/stats` | `#thongke` | Không | Thống kê người dùng, lưu lượng và nguồn giới thiệu. **Chỉ `ADMIN_USER_IDS`**; người khác nhận về `user_id` của chính họ | `/thongke` | [`ghibai/core.py:cmd_thongke`](file:///home/dell/ghi_bai/ghibai/core.py) |
 | `/sheet` | `#sheet` | `[link_sheet]` | Xem hoặc lưu link Google Sheet cho phòng chat này | `/sheet https://docs.google...` | [`ghibai/core.py:cmd_sheet`](file:///home/dell/ghi_bai/ghibai/core.py#L567-L586) |
 | `/export` | `#export` | `[link_sheet]` | Xuất toàn bộ chi tiết các ván của bàn lên Google Sheet | `/export` | [`ghibai/core.py:cmd_export`](file:///home/dell/ghi_bai/ghibai/core.py#L587-L615) |
 
@@ -297,12 +355,20 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 
 ## 6. Mô hình Dữ liệu & SQLite Schema
 
-Cơ sở dữ liệu SQLite được quản lý tại [`ghibai/db.py`](file:///home/dell/ghi_bai/ghibai/db.py) với `SCHEMA_VERSION = 4`.
+Cơ sở dữ liệu SQLite được quản lý tại [`ghibai/db.py`](file:///home/dell/ghi_bai/ghibai/db.py) với `SCHEMA_VERSION = 5`.
+
+Schema chia làm 2 nhóm độc lập nhau: **nhóm ghi điểm** (`chats`, `players`, `sessions`, `rounds`, `round_scores`) và **nhóm tracking** (`bot_users`, `chat_members`, `usage_events`, `ref_clicks`). Nhóm tracking chỉ tham chiếu tới `chats`, nên tắt tracking đi thì phần ghi điểm vẫn chạy nguyên vẹn.
 
 ```mermaid
 erDiagram
     CHATS ||--o{ PLAYERS : contains
     CHATS ||--o{ SESSIONS : hosts
+    CHATS ||--o{ CHAT_MEMBERS : "ai dùng bot ở đây"
+    BOT_USERS ||--o{ CHAT_MEMBERS : "xuất hiện ở chat nào"
+    BOT_USERS ||--o{ BOT_USERS : "giới thiệu (referred_by)"
+    BOT_USERS ||--o{ USAGE_EVENTS : "đã dùng"
+    BOT_USERS ||--o{ REF_CLICKS : "nhận click (claimed_by)"
+
     SESSIONS ||--o{ ROUNDS : has
     ROUNDS ||--o{ ROUND_SCORES : details
     PLAYERS ||--o{ ROUND_SCORES : earns
@@ -356,12 +422,62 @@ erDiagram
         integer score "Điểm số (+5, -6, 0)"
         integer is_banker "1: Cầm chương / Thắng, 0: Bình thường"
     }
+
+    BOT_USERS {
+        integer id PK "Auto Increment"
+        text platform "telegram / zalo"
+        text native_user_id "message.from.id do nền tảng cấp"
+        text display_name "Tên hiển thị"
+        text username "@username (chỉ Telegram)"
+        text ref_code UK "Mã 6 ký tự nằm trong link /chiase"
+        integer referred_by FK "bot_users.id của người giới thiệu"
+        text ref_source "link / group / landing"
+        text ref_confidence "exact (chắc chắn) / inferred (suy đoán)"
+        text referred_at "Lúc gán nguồn"
+        text first_chat_key "Chat đầu tiên thấy người này"
+        text first_seen_at "Lần đầu thấy"
+        text last_seen_at "Lần cuối thấy"
+        integer msg_count "Số tin nhắn đã gửi cho bot"
+    }
+
+    CHAT_MEMBERS {
+        text chat_key FK "Khóa phòng chat"
+        integer user_id FK "bot_users.id"
+        text first_seen_at "Lần đầu thấy trong chat này (dùng cho luật group)"
+        text last_seen_at "Lần cuối thấy"
+        integer msg_count "Số tin nhắn trong chat này"
+    }
+
+    USAGE_EVENTS {
+        integer id PK "Auto Increment"
+        text at "ISO 8601 timestamp"
+        text day "YYYY-MM-DD giờ địa phương, để GROUP BY"
+        integer hour "0-23, cho biểu đồ giờ cao điểm"
+        text platform "telegram / zalo"
+        text chat_key "Chat phát sinh (có thể NULL)"
+        integer user_id FK "bot_users.id, NULL khi nền tảng không gửi id"
+        text kind "command / round / unknown_command"
+        text command "Tên lệnh, NULL nếu là ván"
+        integer ok "1 thành công, 0 lệnh trả lỗi"
+        integer ms "Thời gian handler chạy"
+    }
+
+    REF_CLICKS {
+        integer id PK "Auto Increment"
+        text ref_code "Mã được bấm ở trang /i/<mã>"
+        text at "ISO 8601 timestamp"
+        text ua_hash "sha256(User-Agent + IP) cắt 16 ký tự"
+        integer claimed_by FK "bot_users.id đã nhận click này"
+        text claimed_at "Lúc ghép được với người dùng"
+    }
 ```
 
 ### Các bước Migrations & Cơ chế Tự sửa lỗi (Self-Repair)
 1. **v1 $\rightarrow$ v2**: Chuyển đổi `chat_id` dạng số nguyên (chỉ hỗ trợ Telegram) sang chuỗi `chat_key` dạng `<platform>:<native_id>` để hỗ trợ Zalo ID dạng hex string ([`ghibai/db.py:_upgrade_v1_to_v2`](file:///home/dell/ghi_bai/ghibai/db.py#L170-L206)).
 2. **v2 $\rightarrow$ v3**: Bổ sung cột `web_token` và index unique vào bảng `chats` để phục vụ xác thực Web UI ([`ghibai/db.py:_add_web_token_column`](file:///home/dell/ghi_bai/ghibai/db.py#L153-L157)).
-3. **Cơ chế sửa Foreign Key hỏng (`_repair_dangling_refs`)**: Tự động phát hiện và khắc phục các bảng `rounds` / `round_scores` trỏ tới bảng tạm `_v1` do lỗi PRAGMA `legacy_alter_table` trước đây ([`ghibai/db.py:_repair_dangling_refs`](file:///home/dell/ghi_bai/ghibai/db.py#L209-L245)).
+3. **v3 $\rightarrow$ v4**: Bổ sung cột `game_type` vào `sessions` để phân biệt bàn 3 cây và bàn Sâm ([`ghibai/db.py:_add_game_type_column`](file:///home/dell/ghi_bai/ghibai/db.py)).
+4. **v4 $\rightarrow$ v5**: Thêm 4 bảng tracking (`bot_users`, `chat_members`, `usage_events`, `ref_clicks`). **Không sửa bảng nào đang có**, nên chỉ cần `CREATE TABLE IF NOT EXISTS` — dữ liệu ghi điểm cũ được giữ nguyên 100% (xem `tests/test_migration.py::test_v4_len_v5_giu_nguyen_du_lieu_game`).
+5. **Cơ chế sửa Foreign Key hỏng (`_repair_dangling_refs`)**: Tự động phát hiện và khắc phục các bảng `rounds` / `round_scores` trỏ tới bảng tạm `_v1` do lỗi PRAGMA `legacy_alter_table` trước đây ([`ghibai/db.py:_repair_dangling_refs`](file:///home/dell/ghi_bai/ghibai/db.py#L209-L245)).
 
 ---
 
@@ -433,6 +549,47 @@ erDiagram
 
 ---
 
+### 7.4. Stats Endpoint (Dành cho trang `/admin`)
+- **URL**: `GET /api/stats?k=<ADMIN_STATS_TOKEN>`
+- **Xác thực**: token so sánh bằng `hmac.compare_digest`. Sai token **hoặc chưa đặt `ADMIN_STATS_TOKEN`** đều trả `404` (không phải `401`) — người lạ không cần biết endpoint này có tồn tại hay không.
+- **Nguồn số liệu**: [`ghibai/stats.py:overview()`](file:///home/dell/ghi_bai/ghibai/stats.py) — **dùng chung** với lệnh `/thongke`, nên hai chỗ không bao giờ lệch số.
+- **Phản hồi** (`200 OK`, rút gọn):
+  ```json
+  {
+    "generatedAt": "2026-09-02T22:30:00+07:00",
+    "totals": { "users": 42, "chats": 8, "sessions": 12, "rounds": 240, "events": 1503 },
+    "users": { "newToday": 3, "new7d": 9, "new30d": 20, "dau": 5, "wau": 12, "mau": 30 },
+    "byPlatform": [{ "platform": "zalo", "users": 30, "new7d": 4, "chats": 7, "dau": 3 }],
+    "daily": [{ "day": "2026-09-02", "events": 40, "activeUsers": 5, "newUsers": 1 }],
+    "hourly": [{ "hour": 21, "events": 88 }],
+    "referrals": {
+      "attributed": 18, "exact": 12, "inferred": 6, "inviters": 7, "kFactor": 2.57,
+      "bySource": [{ "source": "link", "count": 12 }],
+      "topReferrers": [{ "name": "Minh", "platform": "telegram", "code": "AB12CD", "invited": 5 }],
+      "recent": [{ "invitee": "Nam", "inviter": "Minh", "platform": "telegram",
+                   "source": "link", "confidence": "exact", "at": "2026-09-02T21:10:00+07:00" }]
+    },
+    "topCommands": [{ "command": "tong", "count": 50 }],
+    "topChats": [{ "title": "Nhóm A", "platform": "telegram", "members": 4,
+                   "rounds": 80, "lastActiveAt": "2026-09-02T21:40:00+07:00" }]
+  }
+  ```
+- **Lưu ý**: `daily` luôn đủ 30 điểm và `hourly` luôn đủ 24 điểm (kể cả ngày/giờ không có dữ liệu) để biểu đồ cột không bị co lại.
+
+---
+
+### 7.5. Trang Mời (Invite Landing Page)
+- **URL**: `GET /i/{code}`
+- **Mục đích**: Zalo Bot Platform **không hỗ trợ tham số trong link**, nên link chia sẻ của người dùng Zalo phải đi qua một trang của mình để ghi log click trước khi chuyển tiếp sang bot.
+- **Hành vi** ([`ghibai/invite.py:InvitePages.page`](file:///home/dell/ghi_bai/ghibai/invite.py)):
+  1. Tra `ref_code`; không có → `404` kèm trang HTML tiếng Việt.
+  2. Ghi một dòng vào `ref_clicks` (mã, thời điểm, `sha256(UA + IP)` cắt 16 ký tự — **không lưu UA/IP gốc**).
+  3. Chỉ bật một nền tảng → `302` thẳng sang bot. Bật cả hai → trang HTML server-side (CSS inline, mobile-first, theo `prefers-color-scheme`) cho người dùng tự chọn.
+- **Link Telegram luôn kèm mã** (`?start=r_<MÃ>`) nên attribution chính xác tuyệt đối; link Zalo không mang được tham số nào, chỉ còn dựa vào log click.
+- ⚠️ **Service worker của PWA phải loại trừ đường dẫn này** — xem `navigateFallbackDenylist` trong [`web/vite.config.ts`](file:///home/dell/ghi_bai/web/vite.config.ts), thiếu thì SW sẽ trả `index.html` thay cho trang mời.
+
+---
+
 ## 8. Bảng Biến Môi trường (.env Reference)
 
 | Tên biến | Kiểu / Mặc định | Bắt buộc khi... | Mô tả chi tiết & Hướng dẫn |
@@ -451,6 +608,12 @@ erDiagram
 | `GOOGLE_SA_JSON` | `path` (`./secrets/service_account.json`) | Dùng `/export` | Đường dẫn file JSON khóa của Google Cloud Service Account. |
 | `DEFAULT_SHEET_URL` | `string` (trống) | Tùy chọn | Link Google Sheet mặc định khi nhóm chưa tự gán bằng lệnh `/sheet`. |
 | `SHEET_TAB_NAME` | `string` (`Chi tiet van`) | Tùy chọn | Tên tab sẽ được tạo và ghi đè trên Google Sheet khi gõ `/export`. |
+| `ADMIN_USER_IDS` | `csv string` (trống) | Dùng `/thongke` | Danh sách admin dạng `telegram:123,zalo:abc`. Tách theo nền tảng nên một id Telegram không tính là admin bên Zalo. Trống = không ai là admin. |
+| `ADMIN_STATS_TOKEN` | `string` (trống) | Dùng `/admin` | Token mở `/admin?k=…` và `/api/stats?k=…`. Trống = **tắt hẳn** cả hai (trả 404). Tạo bằng: `openssl rand -hex 24`. |
+| `TELEGRAM_BOT_USERNAME` | `string` (trống) | Tùy chọn | Ghi đè username bot dùng cho link mời. Thường không cần vì bot tự lấy bằng `getMe` lúc khởi động. |
+| `ZALO_BOT_LINK` | `string` (trống) | Dùng `#chiase` ở Zalo | Link mở bot Zalo (lấy trong Zalo Bot Creator) để trang `/i/<mã>` biết chuyển tiếp đi đâu. |
+| `REF_CLICK_WINDOW_MIN` | `int` (`30`) | Tùy chọn | Cửa sổ (phút) ghép click trang mời với người dùng Zalo mới. Trong cửa sổ có đúng 1 mã thì gán nguồn (đánh dấu `inferred`); nhiều hơn 1 thì bỏ qua. |
+| `USAGE_RETENTION_DAYS` | `int` (`180`) | Tùy chọn | Giữ log `usage_events` bao nhiêu ngày; dòng cũ hơn bị xóa một lần lúc khởi động. |
 | `DB_PATH` | `path` (`./data/ghibai.db`) | Mặc định | Đường dẫn file SQLite database. Tự tạo thư mục và file nếu chưa có. |
 | `TZ` | `string` (`Asia/Ho_Chi_Minh`) | Docker | Múi giờ hiển thị cho cột Giờ trong Google Sheet và Web. |
 | `DOCKER_UID` / `DOCKER_GID` | `int` (`1000`) | Docker | UID/GID của user trên máy chủ host để container ghi được vào `./data`. |
