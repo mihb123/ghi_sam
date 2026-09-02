@@ -45,7 +45,8 @@ def test_lichsu_danh_dau_van_da_xoa():
     rnd = Round(1, 1, 3, "2026-09-02T20:14:00+07:00", "-5, 5, , 6", {1: -5, 2: 5, 3: -6, 4: 6})
     out = plain(render.history(TelegramFmt(), [rnd], SEATS, voided=[4, 5]))
     assert "Đã xóa: ván 4, 5" in out
-    assert "20:14" in out
+    assert "Ván 1:" in out
+    assert "Hương -5 | Hằng +5 | Toàn* -6 | Thu +6" in out
 
 
 # --- ZALO: khong co <pre> nen layout phai khac han, khong chi doi tag ---
@@ -67,8 +68,8 @@ def test_zalo_lichsu_gom_theo_van():
 
     rnd = Round(1, 7, 3, "2026-09-02T20:14:00+07:00", "-5, 5, , 6", {1: -5, 2: 5, 3: -6, 4: 6})
     out = render.history(ZaloFmt(), [rnd], SEATS, [])
-    assert "Ván 7 · 20:14" in out
-    assert "Hương -5" in out and "Toàn -6" in out
+    assert "<b>Ván 7</b>:" in out
+    assert "Hương -5 | Hằng +5 | Toàn* -6 | Thu +6" in out
 
 
 def test_prefix_lenh_theo_nen_tang():

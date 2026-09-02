@@ -185,19 +185,16 @@ def standings(
 
 
 def history(
-    fmt, rounds: list[Round], seats: list[Player], voided: list[int], game_type: str = "3cay"
+    fmt, rounds: list[Round], seats: list[Player], voided: list[int] | None = None, game_type: str = "3cay"
 ) -> str:
     if not rounds:
         return "Bàn chưa có ván nào."
-    banker_col = "Thắng" if game_type == "sam" else "Chương"
-    header = ["Ván", "Giờ", *[p.name for p in seats], banker_col]
-    rows = []
+    blocks = []
     for r in rounds:
-        banker = next((p.name for p in seats if p.id == r.banker_id), "?")
-        cells = [fmt_signed(r.scores[p.id]) if p.id in r.scores else "-" for p in seats]
-        rows.append([fmt.row_label("Ván", r.seq), _hhmm(r.created_at), *cells, banker])
-    note = f"\nĐã xóa: ván {', '.join(map(str, voided))}" if voided else ""
-    return fmt.wide_table(header, rows) + note
+        detail = " | ".join(_cell(fmt, p, r) for p in seats)
+        blocks.append(f"{fmt.b(f'Ván {r.seq}')}:\n{detail}")
+    note = f"\n\nĐã xóa: ván {', '.join(map(str, voided))}" if voided else ""
+    return "\n\n".join(blocks) + note
 
 
 def lifetime(fmt, stats: list[dict], game_type: str = "3cay") -> str:

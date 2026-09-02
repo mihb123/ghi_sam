@@ -261,9 +261,12 @@ def test_choi_sam_toan_dien(engine):
     assert "Đã ghi ván 2" in res2
     assert "Thu* +30" in res2
 
-    # Lich su co cot Thang
+    # Lich su theo tung van
     ls = say(engine, "/lichsu")[0]
-    assert "Thắng" in ls
+    assert "Ván 1:" in ls
+    assert "Toàn* +35" in ls
+    assert "Ván 2:" in ls
+    assert "Thu* +30" in ls
 
     # Chot ban
     kt = say(engine, "/ketthuc")[0]
