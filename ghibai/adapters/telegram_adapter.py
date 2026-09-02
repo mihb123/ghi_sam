@@ -29,7 +29,7 @@ MENU = [
     ("undo", "Hủy ván vừa ghi"),
     ("xoa", "Xóa ván theo số"),
     ("khoiphuc", "Lấy lại ván đã xóa"),
-    ("bang", "Điểm lũy kế bàn đang chơi"),
+    ("tong", "Điểm lũy kế bàn đang chơi"),
     ("lichsu", "Các ván gần nhất"),
     ("sheet", "Xem/đặt link Google Sheet"),
     ("export", "Ghi bàn đang chơi lên Google Sheet"),

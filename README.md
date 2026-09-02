@@ -110,7 +110,7 @@ Kết quả:     Hương -5 │ Hằng -10 │ Toàn +35 │ Thu -20      → t�
 | `/xoa 3` · `/xoa 3 5 7` | Xoá ván theo số thứ tự |
 | `/khoiphuc 3` | Lấy lại ván đã xoá |
 | `/sua 3 -5, 5, , 6` | Nhập lại ván số 3 (giữ nguyên số ván) |
-| `/bang` | Điểm luỹ kế bàn đang chơi |
+| `/tong` | Điểm luỹ kế bàn đang chơi |
 | `/lichsu 10` | 10 ván gần nhất |
 | `/web` | Link xem bàn đang chơi trên điện thoại |
 | `/web doilink` | Đổi link nếu lỡ lọt ra ngoài nhóm |

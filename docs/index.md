@@ -287,7 +287,7 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 | `/undo` | `#undo` | Không | Hủy ván vừa ghi gần nhất (xóa mềm) | `/undo` | [`ghibai/core.py:cmd_undo`](file:///home/dell/ghi_bai/ghibai/core.py#L424-L432) |
 | `/xoa` | `#xoa` | `<số_ván...>` | Xóa một hoặc nhiều ván theo số thứ tự | `/xoa 3` hoặc `/xoa 3 5 7` | [`ghibai/core.py:cmd_xoa`](file:///home/dell/ghi_bai/ghibai/core.py#L433-L452) |
 | `/khoiphuc` | `#khoiphuc` | `<số_ván...>` | Khôi phục lại các ván đã bị xóa | `/khoiphuc 3` | [`ghibai/core.py:cmd_khoiphuc`](file:///home/dell/ghi_bai/ghibai/core.py#L453-L477) |
-| `/bang` | `#bang` | Không | Xem bảng tổng điểm lũy kế của bàn đang chơi | `/bang` | [`ghibai/core.py:cmd_bang`](file:///home/dell/ghi_bai/ghibai/core.py#L512-L526) |
+| `/tong` | `#tong` | Không | Xem bảng tổng điểm lũy kế của bàn đang chơi | `/tong` | [`ghibai/core.py:cmd_tong`](file:///home/dell/ghi_bai/ghibai/core.py#L512-L526) |
 | `/lichsu` | `#lichsu` | `[số_lượng]` | Xem chi tiết các ván gần nhất (mặc định 15 ván) | `/lichsu 10` | [`ghibai/core.py:cmd_lichsu`](file:///home/dell/ghi_bai/ghibai/core.py#L527-L538) |
 | `/web` · `/link` | `#web` · `#link` | `[doilink]` | Lấy link xem bàn chơi trên web hoặc đổi token mới | `/web` hoặc `/web doilink` | [`ghibai/core.py:cmd_web`](file:///home/dell/ghi_bai/ghibai/core.py#L544-L564) |
 | `/sheet` | `#sheet` | `[link_sheet]` | Xem hoặc lưu link Google Sheet cho phòng chat này | `/sheet https://docs.google...` | [`ghibai/core.py:cmd_sheet`](file:///home/dell/ghi_bai/ghibai/core.py#L567-L586) |

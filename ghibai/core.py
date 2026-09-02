@@ -74,7 +74,7 @@ def help_text(ctx: Ctx, game_type: str = "3cay") -> str:
                 f"{p}sua 3 -5, -10, c, -20 - nhập lại ván số 3",
                 "",
                 b("Xem"),
-                f"{p}bang - điểm lũy kế bàn đang chơi",
+                f"{p}tong - điểm lũy kế bàn đang chơi",
                 f"{p}lichsu 10 - 10 ván gần nhất",
                 "",
                 b("Bàn chơi"),
@@ -114,7 +114,7 @@ def help_text(ctx: Ctx, game_type: str = "3cay") -> str:
             f"{p}sua 3 -5, 5, c, 6 - nhập lại ván số 3",
             "",
             b("Xem"),
-            f"{p}bang - điểm lũy kế bàn đang chơi",
+            f"{p}tong - điểm lũy kế bàn đang chơi",
             f"{p}lichsu 10 - 10 ván gần nhất",
             "",
             b("Bàn chơi"),
@@ -499,7 +499,7 @@ class Engine:
 
     # --- XEM ---
 
-    async def cmd_bang(self, ctx: Ctx) -> list[str]:
+    async def cmd_tong(self, ctx: Ctx) -> list[str]:
         session = self.db.active_session(ctx.key)
         if session is None:
             return [
@@ -635,7 +635,8 @@ HANDLERS = {
     "undo": Engine.cmd_undo,
     "xoa": Engine.cmd_xoa,
     "khoiphuc": Engine.cmd_khoiphuc,
-    "bang": Engine.cmd_bang,
+    "tong": Engine.cmd_tong,
+    "bang": Engine.cmd_tong,
     "lichsu": Engine.cmd_lichsu,
     "web": Engine.cmd_web,
     "link": Engine.cmd_web,

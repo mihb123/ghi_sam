@@ -209,7 +209,7 @@ def test_telegram_html_entities_hop_le(engine):
         "-5, 5, , 6",
         "/v 3, -4, , 1",
         "/sua 1 -5, 5, , 6",
-        "/bang",
+        "/tong",
         "/lichsu",
         "/xoa 1",
         "/khoiphuc",
