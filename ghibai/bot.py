@@ -66,14 +66,14 @@ async def run(config: Config) -> None:
             await _register_zalo_webhook(zalo_client, config)
         elif zalo_client:
             logger.warning(
-                "Chua dat ZALO_WEBHOOK_URL nen bot khong tu dang ky webhook. "
-                "Zalo chi gui tin nhan toi URL da dang ky."
+                "Chưa đặt ZALO_WEBHOOK_URL nên bot không tự đăng ký webhook. "
+                "Zalo chỉ gửi tin nhắn tới URL đã đăng ký."
             )
 
-        logger.info("Da san sang. Nen tang dang bat: %s", ", ".join(config.platforms))
+        logger.info("Đã sẵn sàng. Nền tảng đang bật: %s", ", ".join(config.platforms))
         await stop.wait()
     finally:
-        logger.info("Dang dung...")
+        logger.info("Đang dừng...")
         if runner is not None:
             await runner.cleanup()
         if zalo_webhook is not None:
@@ -94,13 +94,13 @@ def _web_dist(config: Config):
         return None
     if not config.web_dist.is_dir():
         logger.warning(
-            "Bat WEB_UI nhung khong thay ban build o %s. Chay: cd web && npm install && "
+            "Bật WEB_UI nhưng không thấy bản build ở %s. Chạy: cd web && npm install && "
             "npm run build",
             config.web_dist,
         )
         return None
     if not config.web_public_url:
-        logger.warning("Chua dat WEB_PUBLIC_URL nen lenh /web khong dung duoc link de gui.")
+        logger.warning("Chưa đặt WEB_PUBLIC_URL nên lệnh /web không dựng được link để gửi.")
     return config.web_dist
 
 
@@ -108,10 +108,10 @@ async def _log_zalo_identity(client: ZaloClient) -> dict:
     try:
         me = await client.get_me()
     except ZaloError as exc:
-        logger.error("Token Zalo khong dung hoac khong goi duoc API: %s", exc)
+        logger.error("Token Zalo không đúng hoặc không gọi được API: %s", exc)
         return {}
     logger.info(
-        "Zalo: %s (id %s, loai %s, vao duoc group: %s)",
+        "Zalo: %s (id %s, loại %s, vào được group: %s)",
         me.get("account_name"),
         me.get("id"),
         me.get("account_type"),
@@ -125,7 +125,7 @@ async def _register_zalo_webhook(client: ZaloClient, config: Config) -> None:
     try:
         result = await client.set_webhook(config.zalo_webhook_url, config.zalo_secret_token)
     except ZaloError as exc:
-        logger.error("Dang ky webhook Zalo that bai: %s", exc)
+        logger.error("Đăng ký webhook Zalo thất bại: %s", exc)
         return
 
     verification = result.get("verification") or {}
@@ -136,9 +136,9 @@ async def _register_zalo_webhook(client: ZaloClient, config: Config) -> None:
         return
 
     logger.warning(
-        "Webhook Zalo da luu nhung Zalo KHONG goi duoc vao %s (status %s, %s). "
-        "Kiem tra: domain da tro dung server chua, HTTPS con han khong, reverse proxy co "
-        "forward %s toi cong %s khong.",
+        "Webhook Zalo đã lưu nhưng Zalo KHÔNG gọi được vào %s (status %s, %s). "
+        "Kiểm tra: domain đã trỏ đúng server chưa, HTTPS còn hạn không, reverse proxy có "
+        "forward %s tới cổng %s không.",
         result.get("url"),
         verification.get("status_code"),
         verification.get("outcome") or verification.get("hint"),
@@ -157,7 +157,7 @@ def main() -> None:
     logger.info("DB: %s", config.db_path)
     for platform, allowed in config.allowed_chats.items():
         logger.info(
-            "Chat duoc phep (%s): %s", platform, ", ".join(sorted(allowed)) or "tat ca"
+            "Chat được phép (%s): %s", platform, ", ".join(sorted(allowed)) or "tất cả"
         )
 
     with contextlib.suppress(KeyboardInterrupt):

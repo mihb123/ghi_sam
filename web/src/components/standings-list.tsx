@@ -5,7 +5,15 @@ import { signed, tone } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { Card } from "@/components/ui/card"
 
-export function StandingsList({ standings }: { standings: Standing[] }) {
+export function StandingsList({
+  standings,
+  gameType = "3cay",
+}: {
+  standings: Standing[]
+  gameType?: string
+}) {
+  const bankLabel = gameType === "sam" ? "lần thắng" : "lần chương"
+
   return (
     <Card className="gap-0 py-0">
       <ul className="divide-y">
@@ -26,7 +34,7 @@ export function StandingsList({ standings }: { standings: Standing[] }) {
                   <>
                     <span aria-hidden>·</span>
                     <CrownIcon className="size-3 shrink-0" aria-hidden />
-                    {player.banked} lần chương
+                    {player.banked} {bankLabel}
                   </>
                 ) : null}
               </p>

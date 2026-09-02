@@ -67,10 +67,10 @@ class ZaloClient:
             async with self._session.post(url, json=payload or {}) as response:
                 body = await response.json(content_type=None)
         except aiohttp.ClientError as exc:
-            raise ZaloError(f"Khong goi duoc {method}: {exc}") from exc
+            raise ZaloError(f"Không gọi được {method}: {exc}") from exc
 
         if not isinstance(body, dict) or not body.get("ok"):
-            raise ZaloError(f"{method} that bai: {body}")
+            raise ZaloError(f"{method} thất bại: {body}")
         return body.get("result") or {}
 
     async def get_me(self) -> dict:

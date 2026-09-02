@@ -39,11 +39,11 @@ def test_bang_export_co_dong_tong_va_o_chuong():
     totals = {1: -3, 2: 1, 3: -6, 4: 8}
     title, header, rows, totals_row, banker_cells = build_table(SEATS, rounds, totals)
 
-    assert header == ["Gio", "Hương", "Hằng", "Toàn", "Thu"]
+    assert header == ["Giờ", "Hương", "Hằng", "Toàn", "Thu"]
     assert rows[0] == ["20:14", -5, 5, -6, 6]
     assert rows[1] == ["20:19", 2, -4, 0, 2]
-    assert totals_row == ["TONG", -3, 1, -6, 8]
-    assert "2026-09-02" in title and "2 van" in title
+    assert totals_row == ["TỔNG", -3, 1, -6, 8]
+    assert "2026-09-02" in title and "2 ván" in title
 
     # Van 1 -> dong 2 (0-based, sau tieu de + header), Toan -> cot 3
     assert banker_cells == [(2, 3), (3, 1)]

@@ -161,3 +161,27 @@ def test_va_db_da_hong_san(tmp_path):
     assert "_v1" not in _fk_targets(db.conn, "rounds")
     assert "_v1" not in _fk_targets(db.conn, "round_scores")
     assert db.conn.execute("SELECT COUNT(*) FROM rounds").fetchone()[0] == 1
+
+
+def test_migration_them_cot_game_type(tmp_path):
+    path = tmp_path / "v3.db"
+    conn = sqlite3.connect(path)
+    conn.execute("PRAGMA user_version = 3")
+    conn.execute(
+        "CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_key TEXT NOT NULL, "
+        "note TEXT, seats TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO sessions (id, chat_key, note, seats, started_at) "
+        "VALUES (1, 'telegram:123', 'test v3', '[1, 2]', 'now')"
+    )
+    conn.commit()
+    conn.close()
+
+    db = Database(path)
+    columns = {r["name"] for r in db.conn.execute("PRAGMA table_info(sessions)")}
+    assert "game_type" in columns
+    session = db.latest_session("telegram:123")
+    assert session is not None
+    assert session.game_type == "3cay"
+    db.close()

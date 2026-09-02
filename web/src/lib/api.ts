@@ -7,6 +7,7 @@ export type Chat = {
 
 export type SessionInfo = {
   id: number
+  gameType?: "3cay" | "sam" | string
   note: string | null
   startedAt: string
   endedAt: string | null

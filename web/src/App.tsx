@@ -147,7 +147,10 @@ function Body({
 
         <TabsContent value="bang" className="pt-1">
           {board.standings.length > 0 ? (
-            <StandingsList standings={board.standings} />
+            <StandingsList
+              standings={board.standings}
+              gameType={board.session?.gameType ?? "3cay"}
+            />
           ) : (
             <p className="py-8 text-center text-sm text-muted-foreground">
               Bàn đã mở nhưng chưa ghi ván nào.
@@ -161,6 +164,7 @@ function Body({
               rounds={board.rounds}
               players={board.players}
               voidedSeqs={board.voidedSeqs}
+              gameType={board.session?.gameType ?? "3cay"}
             />
           ) : (
             <p className="py-8 text-center text-sm text-muted-foreground">

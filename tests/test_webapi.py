@@ -222,3 +222,13 @@ def test_api_khong_bi_route_spa_nuot(engine, tmp_path):
     status, body = call(api_app(engine, dist), f"/api/board?k={token_of(engine)}")
     assert status == 200
     assert json.loads(body)["session"]["played"] == 2
+
+
+def test_payload_game_type_sam(engine):
+    say(engine, "/nguoichoi Huong, Hang, Toan, Thu")
+    say(engine, "/banmoi sam toi nay")
+    say(engine, "-5, -10, , -20")
+    status, data = board(engine)
+    assert status == 200
+    assert data["session"]["gameType"] == "sam"
+    assert data["session"]["note"] == "toi nay"

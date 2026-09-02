@@ -17,21 +17,21 @@ from .config import load_config
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="ghibai-zalo", description="Quan ly Zalo Bot")
+    parser = argparse.ArgumentParser(prog="ghibai-zalo", description="Quản lý Zalo Bot")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("getme", help="Kiem tra token con dung khong")
-    set_hook = sub.add_parser("setwebhook", help="Dang ky webhook (mac dinh lay ZALO_WEBHOOK_URL)")
+    sub.add_parser("getme", help="Kiểm tra token còn đúng không")
+    set_hook = sub.add_parser("setwebhook", help="Đăng ký webhook (mặc định lấy ZALO_WEBHOOK_URL)")
     set_hook.add_argument("url", nargs="?")
-    sub.add_parser("info", help="Xem webhook dang dang ky")
-    sub.add_parser("delete", help="Huy webhook")
-    send = sub.add_parser("send", help="Gui 1 tin nhan thu")
+    sub.add_parser("info", help="Xem webhook đang đăng ký")
+    sub.add_parser("delete", help="Hủy webhook")
+    send = sub.add_parser("send", help="Gửi 1 tin nhắn thử")
     send.add_argument("chat_id")
     send.add_argument("text", nargs="+")
 
     args = parser.parse_args(argv)
     config = load_config()
     if not config.zalo_token:
-        print("Chua co ZALO_BOT_TOKEN trong .env", file=sys.stderr)
+        print("Chưa có ZALO_BOT_TOKEN trong .env", file=sys.stderr)
         return 1
 
     return asyncio.run(_run(args, config))
@@ -45,7 +45,7 @@ async def _run(args, config) -> int:
         elif args.command == "setwebhook":
             url = args.url or config.zalo_webhook_url
             if not url:
-                print("Thieu url va ZALO_WEBHOOK_URL cung trong", file=sys.stderr)
+                print("Thiếu url và ZALO_WEBHOOK_URL cũng trống", file=sys.stderr)
                 return 1
             result = await client.set_webhook(url, config.zalo_secret_token)
         elif args.command == "info":
@@ -55,7 +55,7 @@ async def _run(args, config) -> int:
         else:
             result = await client.send_message(args.chat_id, " ".join(args.text))
     except ZaloError as exc:
-        print(f"Loi: {exc}", file=sys.stderr)
+        print(f"Lỗi: {exc}", file=sys.stderr)
         return 1
     finally:
         await client.close()

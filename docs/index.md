@@ -208,6 +208,11 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 ---
 
 ### 4.3. Quản lý Bàn chơi & Người chơi (Sessions & Rosters)
+- **Hỗ trợ 2 chế độ chơi (3 cây & Sâm)**:
+  - Bàn chơi lưu trữ `game_type` là `'3cay'` hoặc `'sam'` trong bảng `sessions` ([`ghibai/db.py`](file:///home/dell/ghi_bai/ghibai/db.py)).
+  - Khi gõ `/banmoi`, bot hỏi người dùng muốn chơi 3 cây hay Sâm.
+  - Người dùng có thể dùng trực tiếp `/banmoi 3cay [ghi chú]`, `/banmoi sam [ghi chú]`, hoặc lệnh tắt `/3cay`, `/sam`.
+  - Trong chế độ Sâm: người thắng ván ăn điểm của người thua, vai trò "người cầm chương" / "chương" được đổi thành "người thắng" / "thắng" ở tất cả các thông báo, lịch sử và dashboard.
 - **Tách biệt theo phòng chat (`chat_key`)**: Mỗi nhóm chat Telegram hoặc Zalo có danh sách người chơi (`roster`), bàn chơi (`session`), và lịch sử hoàn toàn độc lập ([`ghibai/db.py:chat_key`](file:///home/dell/ghi_bai/ghibai/db.py#L83-L85)).
 - **Tự động mở bàn**: Nếu người dùng nhập điểm một ván khi chưa gõ `/banmoi`, bot sẽ tự động tạo bàn mới với danh sách người chơi hiện tại ([`ghibai/core.py:_record`](file:///home/dell/ghi_bai/ghibai/core.py#L246-L266)).
 - **Đồng bộ ghế động (Dynamic Seat Sync)**: Khi thêm (`/themnguoi`) hoặc bớt (`/xoanguoi`) người chơi trong khi bàn đang diễn ra, bàn chơi hiện tại sẽ lập tức cập nhật lại số ghế để các ván tiếp theo nhận đúng số lượng ô ([`ghibai/core.py:_sync_seats`](file:///home/dell/ghi_bai/ghibai/core.py#L207-L214)).
@@ -215,7 +220,7 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 ---
 
 ### 4.4. Cơ chế Sửa sai, Soft-Delete & Undo An toàn
-- **Xóa mềm (Soft Delete)**: Các ván bị xóa (`/undo`, `/xoa`, `/xoaban`) chỉ bị đánh dấu `voided = 1` trong database ([`ghibai/db.py:void_round`](file:///home/dell/ghi_bai/ghibai/db.py#L459-L470)). Dữ liệu điểm không bị mất vĩnh viễn và bị loại khỏi tổng điểm.
+- **Xóa mềm (Soft Delete)**: Các ván bị xóa (`/undo`, `/xoa`) chỉ bị đánh dấu `voided = 1` trong database ([`ghibai/db.py:void_round`](file:///home/dell/ghi_bai/ghibai/db.py#L459-L470)). Dữ liệu điểm không bị mất vĩnh viễn và bị loại khỏi tổng điểm.
 - **Khôi phục ván (`/khoiphuc`)**: Có thể khôi phục lại bất kỳ ván nào đã xóa theo số thứ tự (`/khoiphuc 3`).
 - **Sửa ván giữ nguyên số thứ tự (`/sua <số_ván> <kết_quả>`)**: Cập nhật lại điểm của ván cũ mà không làm lệch số thứ tự ván của cả buổi ([`ghibai/db.py:replace_round`](file:///home/dell/ghi_bai/ghibai/db.py#L423-L440)).
 
@@ -228,6 +233,7 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 - **Giao diện thích ứng (Adaptive Layout)**:
   - Trên điện thoại di động: Hiển thị chi tiết từng ván theo dạng thẻ Card phân cấp rõ ràng, dễ đọc, không bị tràn màn hình hay scroll ngang ([`web/src/components/rounds-view.tsx`](file:///home/dell/ghi_bai/web/src/components/rounds-view.tsx)).
   - Trên máy tính (`md:` trở lên): Hiển thị bảng chi tiết đa cột.
+  - Phù hợp chế độ chơi: Hiển thị badge "Sâm" / "3 cây" và nhãn "lần thắng" / "lần chương".
 - **Tối ưu năng lượng & Dữ liệu mạng**:
   - Tự động poll API `/api/board` mỗi 15 giây khi màn hình đang bật ([`web/src/hooks/use-board.ts`](file:///home/dell/ghi_bai/web/src/hooks/use-board.ts)).
   - Khi người dùng khóa màn hình hoặc chuyển tab (`visibilitychange`), dừng hoàn toàn polling.
@@ -240,11 +246,11 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 - **Tự động format & highlight**: Sử dụng thư viện `gspread` và Service Account ([`ghibai/sheets.py`](file:///home/dell/ghi_bai/ghibai/sheets.py)).
 - **Tính toán nguồn sự thật**: Mỗi lần gõ `/export`, toàn bộ tab `Chi tiết ván` sẽ được ghi đè từ SQLite. Chạy nhiều lần không bao giờ bị trùng dòng.
 - **Trình bày chuyên nghiệp & Tối giản**:
-  - Dòng 1: Tiêu đề bàn chơi và ngày tháng.
+  - Dòng 1: Tiêu đề bàn chơi (bàn 3 cây / Sâm) và ngày tháng.
   - Dòng 2: Header gồm cột `Giờ` và các cột tên người chơi (đã loại bỏ cột `Ván` và `Chương` dư thừa).
   - Thân bảng: Điểm số thực tế (có thể dùng công thức tính toán trong Sheet).
-  - Ô của người cầm chương trong từng ván được tô màu nền vàng (`#FFE699`) ngay tại cột của người đó để dễ nhận biết.
-  - Dòng tổng kết cuối bảng: `["TONG", <tổng_điểm_từng_người>]` có màu nền nổi bật.
+  - Ô của người cầm chương / người thắng trong từng ván được tô màu nền vàng (`#FFE699`) ngay tại cột của người đó để dễ nhận biết.
+  - Dòng tổng kết cuối bảng: `["TỔNG", <tổng_điểm_từng_người>]` có màu nền nổi bật.
   - Cố định dòng tiêu đề & header (Freeze 2 rows) và cột Giờ (Freeze 1 column).
 - **Xử lý lỗi quyền thân thiện**: Nếu Google Sheet chưa được share cho Service Account, bot sẽ trích xuất mã lỗi 403/404 và gửi lại tin nhắn hướng dẫn kèm đúng email Service Account cần cấp quyền Editor.
 
@@ -266,32 +272,32 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 
 | Lệnh Telegram | Lệnh Zalo | Tham số | Ý nghĩa & Hành vi | Ví dụ | File thực thi |
 |---|---|---|---|---|---|
-| `/help` · `/start` | `#help` · `#start` | Không | Hiển thị bảng hướng dẫn sử dụng bot đầy đủ | `/help` | [`ghibai/core.py:help_text`](file:///home/dell/ghi_bai/ghibai/core.py#L48-L91) |
+| `/help` · `/start` | `#help` · `#start` | `[3cay / sam]` | Hiển thị bảng hướng dẫn (tự theo trò chơi hiện tại hoặc chọn cụ thể) | `/help sam` | [`ghibai/core.py:help_text`](file:///home/dell/ghi_bai/ghibai/core.py#L48-L91) |
 | `/nguoichoi` | `#nguoichoi` | `Tên 1, Tên 2, ...` | Khai báo/đặt lại danh sách người chơi theo thứ tự chỗ ngồi | `/nguoichoi Hương, Hằng, Toàn, Thu` | [`ghibai/core.py:cmd_nguoichoi`](file:///home/dell/ghi_bai/ghibai/core.py#L159-L172) |
 | `/dsnguoi` | `#dsnguoi` | Không | Xem danh sách người chơi và thứ tự chỗ ngồi hiện tại | `/dsnguoi` | [`ghibai/core.py:cmd_dsnguoi`](file:///home/dell/ghi_bai/ghibai/core.py#L173-L175) |
 | `/themnguoi` | `#themnguoi` | `Tên` | Thêm một người chơi mới vào cuối danh sách chỗ ngồi | `/themnguoi Nam` | [`ghibai/core.py:cmd_themnguoi`](file:///home/dell/ghi_bai/ghibai/core.py#L176-L188) |
 | `/xoanguoi` | `#xoanguoi` | `Tên` | Tạm ẩn một người chơi khỏi danh sách chỗ ngồi | `/xoanguoi Nam` | [`ghibai/core.py:cmd_xoanguoi`](file:///home/dell/ghi_bai/ghibai/core.py#L189-L206) |
-| `/banmoi` | `#banmoi` | `[Ghi chú]` | Mở một bàn chơi mới (bắt buộc chốt bàn cũ trước) | `/banmoi Tối thứ 7` | [`ghibai/core.py:cmd_banmoi`](file:///home/dell/ghi_bai/ghibai/core.py#L217-L227) |
-| `/ketthuc` | `#ketthuc` | Không | Chốt bàn chơi đang mở và in kết quả chung cuộc | `/ketthuc` | [`ghibai/core.py:cmd_ketthuc`](file:///home/dell/ghi_bai/ghibai/core.py#L228-L240) |
-| `/v` · `/van` | `#v` · `#van` | `Điểm ván` | Ghi điểm một ván (dùng khi muốn chắc chắn không bị lọt tin) | `/v -5, 5, , 6` | [`ghibai/core.py:cmd_v`](file:///home/dell/ghi_bai/ghibai/core.py#L243-L245) |
+| `/banmoi` | `#banmoi` | `[3cay/sam] [Ghi chú]` | Mở bàn mới (nếu không ghi trò sẽ hỏi chọn 3 cây hay Sâm) | `/banmoi sam Tối thứ 7` | [`ghibai/core.py:cmd_banmoi`](file:///home/dell/ghi_bai/ghibai/core.py#L275-L298) |
+| `/3cay` | `#3cay` | `[Ghi chú]` | Lệnh tắt mở ngay bàn 3 cây | `/3cay Tối nay` | [`ghibai/core.py:cmd_3cay`](file:///home/dell/ghi_bai/ghibai/core.py#L300-L310) |
+| `/sam` | `#sam` | `[Ghi chú]` | Lệnh tắt mở ngay bàn Sâm | `/sam Tối nay` | [`ghibai/core.py:cmd_sam`](file:///home/dell/ghi_bai/ghibai/core.py#L312-L322) |
+| `/ketthuc` | `#ketthuc` | Không | Chốt bàn chơi đang mở và in kết quả chung cuộc | `/ketthuc` | [`ghibai/core.py:cmd_ketthuc`](file:///home/dell/ghi_bai/ghibai/core.py#L347-L359) |
+| `/v` · `/van` | `#v` · `#van` | `Điểm ván` | Ghi điểm một ván (dùng khi muốn chắc chắn không bị lọt tin) | `/v -5, 5, , 6` | [`ghibai/core.py:cmd_v`](file:///home/dell/ghi_bai/ghibai/core.py#L363-L365) |
 | *(Tin nhắn trần)* | *(Tin nhắn trần)* | `Điểm ván` | Tự động ghi ván khi tin nhắn khớp cấu trúc điểm | `-5, 5, , 6` hoặc `Hương -5 Toàn` | [`ghibai/core.py:handle`](file:///home/dell/ghi_bai/ghibai/core.py#L127-L131) |
-| `/sua` | `#sua` | `<số_ván> <điểm_mới>` | Sửa lại điểm của một ván đã ghi (giữ nguyên số thứ tự) | `/sua 3 -5, 5, , 6` | [`ghibai/core.py:cmd_sua`](file:///home/dell/ghi_bai/ghibai/core.py#L267-L291) |
-| `/undo` | `#undo` | Không | Hủy ván vừa ghi gần nhất (xóa mềm) | `/undo` | [`ghibai/core.py:cmd_undo`](file:///home/dell/ghi_bai/ghibai/core.py#L304-L312) |
-| `/xoa` | `#xoa` | `<số_ván...>` | Xóa một hoặc nhiều ván theo số thứ tự | `/xoa 3` hoặc `/xoa 3 5 7` | [`ghibai/core.py:cmd_xoa`](file:///home/dell/ghi_bai/ghibai/core.py#L313-L332) |
-| `/khoiphuc` | `#khoiphuc` | `<số_ván...>` | Khôi phục lại các ván đã bị xóa | `/khoiphuc 3` | [`ghibai/core.py:cmd_khoiphuc`](file:///home/dell/ghi_bai/ghibai/core.py#L333-L357) |
-| `/xoaban` | `#xoaban` | `xacnhan` | Xóa sạch tất cả các ván trong bàn đang chơi | `/xoaban xacnhan` | [`ghibai/core.py:cmd_xoaban`](file:///home/dell/ghi_bai/ghibai/core.py#L358-L376) |
-| `/bang` | `#bang` | Không | Xem bảng tổng điểm lũy kế của bàn đang chơi | `/bang` | [`ghibai/core.py:cmd_bang`](file:///home/dell/ghi_bai/ghibai/core.py#L392-L406) |
-| `/lichsu` | `#lichsu` | `[số_lượng]` | Xem chi tiết các ván gần nhất (mặc định 15 ván) | `/lichsu 10` | [`ghibai/core.py:cmd_lichsu`](file:///home/dell/ghi_bai/ghibai/core.py#L407-L418) |
-| `/xh` | `#xh` | Không | Bảng xếp hạng thành tích tích lũy mọi bàn trong phòng | `/xh` | [`ghibai/core.py:cmd_xh`](file:///home/dell/ghi_bai/ghibai/core.py#L419-L421) |
-| `/web` · `/link` | `#web` · `#link` | `[doilink]` | Lấy link xem bàn chơi trên web hoặc đổi token mới | `/web` hoặc `/web doilink` | [`ghibai/core.py:cmd_web`](file:///home/dell/ghi_bai/ghibai/core.py#L424-L444) |
-| `/sheet` | `#sheet` | `[link_sheet]` | Xem hoặc lưu link Google Sheet cho phòng chat này | `/sheet https://docs.google...` | [`ghibai/core.py:cmd_sheet`](file:///home/dell/ghi_bai/ghibai/core.py#L447-L466) |
-| `/export` | `#export` | `[link_sheet]` | Xuất toàn bộ chi tiết các ván của bàn lên Google Sheet | `/export` | [`ghibai/core.py:cmd_export`](file:///home/dell/ghi_bai/ghibai/core.py#L467-L495) |
+| `/sua` | `#sua` | `<số_ván> <điểm_mới>` | Sửa lại điểm của một ván đã ghi (giữ nguyên số thứ tự) | `/sua 3 -5, 5, , 6` | [`ghibai/core.py:cmd_sua`](file:///home/dell/ghi_bai/ghibai/core.py#L387-L411) |
+| `/undo` | `#undo` | Không | Hủy ván vừa ghi gần nhất (xóa mềm) | `/undo` | [`ghibai/core.py:cmd_undo`](file:///home/dell/ghi_bai/ghibai/core.py#L424-L432) |
+| `/xoa` | `#xoa` | `<số_ván...>` | Xóa một hoặc nhiều ván theo số thứ tự | `/xoa 3` hoặc `/xoa 3 5 7` | [`ghibai/core.py:cmd_xoa`](file:///home/dell/ghi_bai/ghibai/core.py#L433-L452) |
+| `/khoiphuc` | `#khoiphuc` | `<số_ván...>` | Khôi phục lại các ván đã bị xóa | `/khoiphuc 3` | [`ghibai/core.py:cmd_khoiphuc`](file:///home/dell/ghi_bai/ghibai/core.py#L453-L477) |
+| `/bang` | `#bang` | Không | Xem bảng tổng điểm lũy kế của bàn đang chơi | `/bang` | [`ghibai/core.py:cmd_bang`](file:///home/dell/ghi_bai/ghibai/core.py#L512-L526) |
+| `/lichsu` | `#lichsu` | `[số_lượng]` | Xem chi tiết các ván gần nhất (mặc định 15 ván) | `/lichsu 10` | [`ghibai/core.py:cmd_lichsu`](file:///home/dell/ghi_bai/ghibai/core.py#L527-L538) |
+| `/web` · `/link` | `#web` · `#link` | `[doilink]` | Lấy link xem bàn chơi trên web hoặc đổi token mới | `/web` hoặc `/web doilink` | [`ghibai/core.py:cmd_web`](file:///home/dell/ghi_bai/ghibai/core.py#L544-L564) |
+| `/sheet` | `#sheet` | `[link_sheet]` | Xem hoặc lưu link Google Sheet cho phòng chat này | `/sheet https://docs.google...` | [`ghibai/core.py:cmd_sheet`](file:///home/dell/ghi_bai/ghibai/core.py#L567-L586) |
+| `/export` | `#export` | `[link_sheet]` | Xuất toàn bộ chi tiết các ván của bàn lên Google Sheet | `/export` | [`ghibai/core.py:cmd_export`](file:///home/dell/ghi_bai/ghibai/core.py#L587-L615) |
 
 ---
 
 ## 6. Mô hình Dữ liệu & SQLite Schema
 
-Cơ sở dữ liệu SQLite được quản lý tại [`ghibai/db.py`](file:///home/dell/ghi_bai/ghibai/db.py) với `SCHEMA_VERSION = 3`.
+Cơ sở dữ liệu SQLite được quản lý tại [`ghibai/db.py`](file:///home/dell/ghi_bai/ghibai/db.py) với `SCHEMA_VERSION = 4`.
 
 ```mermaid
 erDiagram
@@ -325,6 +331,7 @@ erDiagram
     SESSIONS {
         integer id PK "Auto Increment"
         text chat_key FK "Khóa phòng chat"
+        text game_type "Loại trò chơi (3cay hoặc sam)"
         text note "Ghi chú buổi chơi"
         text seats "JSON array ID người chơi [1, 2, 3]"
         text started_at "ISO 8601 timestamp"
@@ -335,7 +342,7 @@ erDiagram
         integer id PK "Auto Increment"
         integer session_id FK "Thuộc bàn chơi"
         integer seq "Số thứ tự ván trong bàn (1, 2, 3...)"
-        integer banker_id FK "Player ID người cầm chương"
+        integer banker_id FK "Player ID người cầm chương / người thắng"
         text raw_input "Chuỗi nhập gốc của người dùng"
         text tg_user "Tên người gõ lệnh"
         integer voided "0: Hợp lệ, 1: Đã xóa mềm"
@@ -347,7 +354,7 @@ erDiagram
         integer round_id FK "Ván chơi"
         integer player_id FK "Người chơi"
         integer score "Điểm số (+5, -6, 0)"
-        integer is_banker "1: Cầm chương, 0: Bình thường"
+        integer is_banker "1: Cầm chương / Thắng, 0: Bình thường"
     }
 ```
 

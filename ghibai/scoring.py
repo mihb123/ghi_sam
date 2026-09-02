@@ -7,14 +7,15 @@ class ScoringError(Exception):
     pass
 
 
-# Diem chuong = -(tong diem nhung nguoi con lai), nho vay tong ca van luon bang 0.
-def resolve_scores(parsed: ParsedRound) -> dict[int, int]:
+# Diem chuong / nguoi thang = -(tong diem nhung nguoi con lai), nho vay tong ca van luon bang 0.
+def resolve_scores(parsed: ParsedRound, game_type: str = "3cay") -> dict[int, int]:
     if parsed.banker_id in parsed.scores:
-        raise ScoringError("Nguoi cam chuong khong duoc nhap diem.")
+        role = "Người thắng" if game_type == "sam" else "Người cầm chương"
+        raise ScoringError(f"{role} không được nhập điểm.")
 
     full = dict(parsed.scores)
     full[parsed.banker_id] = -sum(parsed.scores.values())
 
     if sum(full.values()) != 0:
-        raise ScoringError(f"Tong diem van phai bang 0, dang la {sum(full.values())}.")
+        raise ScoringError(f"Tổng điểm ván phải bằng 0, đang là {sum(full.values())}.")
     return full

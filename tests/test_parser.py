@@ -52,22 +52,22 @@ def test_x_la_nguoi_bo_van():
 
 
 def test_sai_so_o():
-    with pytest.raises(ParseError, match="4 cho nhung ban nhap 3 o"):
+    with pytest.raises(ParseError, match="4 chỗ nhưng bạn nhập 3 ô"):
         parse_round("-5, 5, ", SEATS)
 
 
 def test_hai_o_trong():
-    with pytest.raises(ParseError, match="2 o trong"):
+    with pytest.raises(ParseError, match="2 ô trống"):
         parse_round("-5, , , 6", SEATS)
 
 
 def test_khong_co_o_trong():
-    with pytest.raises(ParseError, match="Chua danh dau nguoi cam chuong"):
+    with pytest.raises(ParseError, match="Chưa đánh dấu người cầm chương"):
         parse_round("-5, 5, -7, 6", SEATS)
 
 
 def test_o_rac():
-    with pytest.raises(ParseError, match="khong hieu"):
+    with pytest.raises(ParseError, match="không hiểu"):
         parse_round("-5, 5, ?, 6", SEATS)
 
 
@@ -101,32 +101,32 @@ def test_khong_khoang_trang_giua_ten_va_so():
 
 
 def test_ai_cung_co_diem_thi_khong_ro_chuong():
-    with pytest.raises(ParseError, match="khong biet ai cam chuong"):
+    with pytest.raises(ParseError, match="không biết ai cầm chương"):
         parse_round("Hương -5, Hằng 5, Toàn -7, Thu 7", SEATS)
 
 
 def test_thieu_2_nguoi_thi_hoi_lai():
-    with pytest.raises(ParseError, match="Khong ro ai cam chuong"):
+    with pytest.raises(ParseError, match="Không rõ ai cầm chương"):
         parse_round("Hương -5, Hằng 5", SEATS)
 
 
 def test_chuong_khong_duoc_dien_diem():
-    with pytest.raises(ParseError, match="khong dien diem"):
+    with pytest.raises(ParseError, match="không điền điểm"):
         parse_round("Toàn* 3, Hương -5, Hằng 5, Thu 6", SEATS)
 
 
 def test_hai_nguoi_cam_chuong():
-    with pytest.raises(ParseError, match="2 nguoi cam chuong"):
+    with pytest.raises(ParseError, match="2 người cầm chương"):
         parse_round("Toàn*, Thu*, Hương -5, Hằng 5", SEATS)
 
 
 def test_ten_lap_lai():
-    with pytest.raises(ParseError, match="2 lan"):
+    with pytest.raises(ParseError, match="2 lần"):
         parse_round("Hương -5, Hương 5, Toàn, Thu 6", SEATS)
 
 
 def test_ten_la():
-    with pytest.raises(ParseError, match="Khong nhan ra"):
+    with pytest.raises(ParseError, match="Không nhận ra"):
         parse_round("Hương -5, Nam 5, Toàn, Thu 6", SEATS)
 
 

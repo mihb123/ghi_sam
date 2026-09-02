@@ -120,21 +120,46 @@ def _cell(fmt, player: Player, rnd: Round) -> str:
     name = fmt.esc(player.name)
     mark = "*" if player.id == rnd.banker_id else ""
     if player.id not in rnd.scores:
-        return f"{name}{mark} (bo van)"
+        return f"{name}{mark} (bỏ ván)"
     return f"{name}{mark} {fmt_signed(rnd.scores[player.id])}"
 
 
-def roster(fmt, seats: list[Player]) -> str:
+def example_round(count: int, game_type: str = "3cay") -> str:
+    if count < 2:
+        return "-5, c"
+    if count == 2:
+        return "-5, c"
+    if count == 3:
+        return "-5, -10, c" if game_type == "sam" else "-5, 5, c"
+
+    if game_type == "sam":
+        pool = ["-5", "-10", "-20", "-15", "-8", "-12", "-4", "-6", "-14", "-18"]
+    else:
+        pool = ["-5", "5", "6", "-10", "8", "-3", "4", "-2", "7", "-6"]
+
+    slots: list[str] = []
+    pool_idx = 0
+    for i in range(count):
+        if i == 2:
+            slots.append("c")
+        else:
+            slots.append(pool[pool_idx % len(pool)])
+            pool_idx += 1
+    return ", ".join(slots)
+
+
+def roster(fmt, seats: list[Player], game_type: str = "3cay") -> str:
     if not seats:
-        return "Chua co nguoi choi nao. Dung:\n" + fmt.code(
-            "/nguoichoi Huong, Hang, Toan, Thu"
+        return "Chưa có người chơi nào. Dùng:\n" + fmt.code(
+            "/nguoichoi Hương, Hằng, Toàn, Thu"
         )
+    role = "người thắng" if game_type == "sam" else "người cầm chương"
     order = "\n".join(f"{i}. {fmt.esc(p.name)}" for i, p in enumerate(seats, 1))
-    example = ", ".join(["-5", "5", "", "6"][: len(seats)])
+    example = example_round(len(seats), game_type)
     return (
-        f"{fmt.b(f'Nguoi choi ({len(seats)} cho)')}\n{order}\n\n"
-        f"Nhap 1 van theo dung thu tu tren:\n{fmt.code(example)}\n"
-        "O trong = nguoi cam chuong (khong dien diem)."
+        f"{fmt.b(f'Người chơi ({len(seats)} chỗ)')}\n{order}\n\n"
+        f"Nhập 1 ván theo đúng thứ tự trên:\n{fmt.code(example)}\n"
+        f"c = {role}."
     )
 
 
@@ -142,41 +167,45 @@ def round_saved(
     fmt, rnd: Round, seats: list[Player], totals: dict[int, int] | None = None, played: int = 0, edited: bool = False
 ) -> str:
     detail = " | ".join(_cell(fmt, p, rnd) for p in seats)
-    verb = "Da sua" if edited else "Da ghi"
-    head = f"{'✏️' if edited else '✅'} {fmt.b(f'{verb} van {rnd.seq}')}"
+    verb = "Đã sửa" if edited else "Đã ghi"
+    head = f"{'✏️' if edited else '✅'} {fmt.b(f'{verb} ván {rnd.seq}')}"
     return f"{head}\n{detail}"
 
 
 def standings(
-    fmt, seats: list[Player], totals: dict[int, int], played: int, title: str = "TONG"
+    fmt, seats: list[Player], totals: dict[int, int], played: int, title: str = "TỔNG", game_type: str = "3cay"
 ) -> str:
     if not totals:
-        return "Ban chua co van nao."
+        return "Bàn chưa có ván nào."
     ranked = sorted((p for p in seats if p.id in totals), key=lambda p: totals[p.id], reverse=True)
     rows = [[p.name, fmt_signed(totals[p.id])] for p in ranked]
     check = sum(totals.values())
-    tail = "" if check == 0 else f"\n⚠️ Tong khong bang 0 ({check}) - co van bi loi."
-    return f"{fmt.b(f'{title} sau {played} van')}{fmt.table(['Nguoi', 'Diem'], rows)}{tail}"
+    tail = "" if check == 0 else f"\n⚠️ Tổng không bằng 0 ({check}) - có ván bị lỗi."
+    return f"{fmt.b(f'{title} sau {played} ván')}{fmt.table(['Người', 'Điểm'], rows)}{tail}"
 
 
-def history(fmt, rounds: list[Round], seats: list[Player], voided: list[int]) -> str:
+def history(
+    fmt, rounds: list[Round], seats: list[Player], voided: list[int], game_type: str = "3cay"
+) -> str:
     if not rounds:
-        return "Ban chua co van nao."
-    header = ["Van", "Gio", *[p.name for p in seats], "Chuong"]
+        return "Bàn chưa có ván nào."
+    banker_col = "Thắng" if game_type == "sam" else "Chương"
+    header = ["Ván", "Giờ", *[p.name for p in seats], banker_col]
     rows = []
     for r in rounds:
         banker = next((p.name for p in seats if p.id == r.banker_id), "?")
         cells = [fmt_signed(r.scores[p.id]) if p.id in r.scores else "-" for p in seats]
-        rows.append([fmt.row_label("Van", r.seq), _hhmm(r.created_at), *cells, banker])
-    note = f"\nDa xoa: van {', '.join(map(str, voided))}" if voided else ""
+        rows.append([fmt.row_label("Ván", r.seq), _hhmm(r.created_at), *cells, banker])
+    note = f"\nĐã xóa: ván {', '.join(map(str, voided))}" if voided else ""
     return fmt.wide_table(header, rows) + note
 
 
-def lifetime(fmt, stats: list[dict]) -> str:
+def lifetime(fmt, stats: list[dict], game_type: str = "3cay") -> str:
     if not stats:
-        return "Chua co du lieu nao."
+        return "Chưa có dữ liệu nào."
+    banker_col = "Thắng" if game_type == "sam" else "Chương"
     rows = [
         [s["name"], fmt_signed(s["total"]), str(s["rounds"]), str(s["banker_rounds"])]
         for s in stats
     ]
-    return fmt.b("Xep hang tich luy") + fmt.wide_table(["Nguoi", "Tong", "Van", "Chuong"], rows)
+    return fmt.b("Xếp hạng tích lũy") + fmt.wide_table(["Người", "Tổng", "Ván", banker_col], rows)

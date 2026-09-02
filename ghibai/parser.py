@@ -42,10 +42,35 @@ class ParsedRound:
     sat_out: list[int] = field(default_factory=list)
 
 
-def seat_hint(seats: list[Player]) -> str:
+def example_round(count: int, game_type: str = "3cay") -> str:
+    if count < 2:
+        return "-5, c"
+    if count == 2:
+        return "-5, c"
+    if count == 3:
+        return "-5, -10, c" if game_type == "sam" else "-5, 5, c"
+
+    if game_type == "sam":
+        pool = ["-5", "-10", "-20", "-15", "-8", "-12", "-4", "-6", "-14", "-18"]
+    else:
+        pool = ["-5", "5", "6", "-10", "8", "-3", "4", "-2", "7", "-6"]
+
+    slots: list[str] = []
+    pool_idx = 0
+    for i in range(count):
+        if i == 2:
+            slots.append("c")
+        else:
+            slots.append(pool[pool_idx % len(pool)])
+            pool_idx += 1
+    return ", ".join(slots)
+
+
+def seat_hint(seats: list[Player], game_type: str = "3cay") -> str:
+    role = "người thắng" if game_type == "sam" else "người cầm chương"
     order = "  ".join(f"{i}.{p.name}" for i, p in enumerate(seats, 1))
-    example = ", ".join(["-5", "5", "", "6"][: len(seats)]) if len(seats) >= 2 else "-5, "
-    return f"Thu tu cho: {order}\nVi du: {example}   (o trong = nguoi cam chuong)"
+    example = example_round(len(seats), game_type)
+    return f"Thứ tự chỗ: {order}\nVí dụ: {example}   (c = {role})"
 
 
 # Chi bat tin nhan tran chac chan la ket qua van, de khong an lam chat thuong trong group.
@@ -59,17 +84,17 @@ def looks_like_round(text: str, seats: list[Player]) -> bool:
     return sum(1 for p in seats if f" {p.norm_name} " in padded) >= 2
 
 
-def parse_round(text: str, seats: list[Player]) -> ParsedRound:
+def parse_round(text: str, seats: list[Player], game_type: str = "3cay") -> ParsedRound:
     t = text.strip()
     if not seats:
-        raise ParseError("Chua khai bao nguoi choi. Dung: /nguoichoi Huong, Hang, Toan, Thu")
+        raise ParseError("Chưa khai báo người chơi. Dùng: /nguoichoi Hương, Hằng, Toàn, Thu")
     if not t:
-        raise ParseError(f"Tin nhan trong.\n{seat_hint(seats)}")
+        raise ParseError(f"Tin nhắn trống.\n{seat_hint(seats, game_type)}")
 
     # Uu tien cu phap vi tri; chi roi sang cu phap ten khi tin nhan that su co ten nguoi choi.
     if "," in t and (_POSITIONAL_SHAPE.match(t) or not _mentions_any_name(t, seats)):
-        return _parse_positional(t, seats)
-    return _parse_named(t, seats)
+        return _parse_positional(t, seats, game_type)
+    return _parse_named(t, seats, game_type)
 
 
 def _mentions_any_name(text: str, seats: list[Player]) -> bool:
@@ -77,12 +102,15 @@ def _mentions_any_name(text: str, seats: list[Player]) -> bool:
     return any(f" {p.norm_name} " in padded for p in seats)
 
 
-def _parse_positional(text: str, seats: list[Player]) -> ParsedRound:
+def _parse_positional(text: str, seats: list[Player], game_type: str = "3cay") -> ParsedRound:
     slots = [s.strip() for s in text.split(",")]
     if len(slots) != len(seats):
         raise ParseError(
-            f"Ban co {len(seats)} cho nhung ban nhap {len(slots)} o.\n{seat_hint(seats)}"
+            f"Bàn có {len(seats)} chỗ nhưng bạn nhập {len(slots)} ô.\n{seat_hint(seats, game_type)}"
         )
+
+    role_verb = "thắng" if game_type == "sam" else "cầm chương"
+    role_subject = "người thắng" if game_type == "sam" else "người cầm chương"
 
     banker_id: int | None = None
     scores: dict[int, int] = {}
@@ -93,8 +121,8 @@ def _parse_positional(text: str, seats: list[Player]) -> ParsedRound:
         if low in BANKER_SLOTS:
             if banker_id is not None:
                 raise ParseError(
-                    "Co 2 o trong nen khong biet ai cam chuong. "
-                    f"Chi de trong dung 1 o.\n{seat_hint(seats)}"
+                    f"Có 2 ô trống nên không biết ai {role_verb}. "
+                    f"Chỉ để trống đúng 1 ô.\n{seat_hint(seats, game_type)}"
                 )
             banker_id = player.id
         elif low in SITOUT_SLOTS:
@@ -103,20 +131,24 @@ def _parse_positional(text: str, seats: list[Player]) -> ParsedRound:
             scores[player.id] = int(slot)
         else:
             raise ParseError(
-                f"O thu {pos} ({player.name}) khong hieu: '{slot}'.\n"
-                f"Moi o la 1 so diem, hoac de trong neu cam chuong, hoac 'x' neu bo van."
+                f"Ô thứ {pos} ({player.name}) không hiểu: '{slot}'.\n"
+                f"Mỗi ô là 1 số điểm, hoặc điền 'c' nếu {role_verb}, hoặc 'x' nếu bỏ ván."
             )
 
     if banker_id is None:
         raise ParseError(
-            "Chua danh dau nguoi cam chuong. De trong o cua nguoi cam chuong "
-            f"(khong dien diem).\n{seat_hint(seats)}"
+            f"Chưa đánh dấu {role_subject}. Gõ c vào ô của {role_subject} "
+            f"\n{seat_hint(seats, game_type)}"
         )
-    return _finish(banker_id, scores, sat_out, "positional")
+    return _finish(banker_id, scores, sat_out, "positional", game_type)
 
 
-def _parse_named(text: str, seats: list[Player]) -> ParsedRound:
+def _parse_named(text: str, seats: list[Player], game_type: str = "3cay") -> ParsedRound:
     tokens = _tokenize_named(text, seats)
+
+    role_verb = "thắng" if game_type == "sam" else "cầm chương"
+    role_subject = "người thắng" if game_type == "sam" else "người cầm chương"
+    role_score = "thắng" if game_type == "sam" else "cầm chương"
 
     banker_id: int | None = None
     scores: dict[int, int] = {}
@@ -132,7 +164,7 @@ def _parse_named(text: str, seats: list[Player]) -> ParsedRound:
             i += 1
             continue
         if kind != "name":
-            raise ParseError(f"Thieu ten nguoi choi truoc '{value}'.\n{seat_hint(seats)}")
+            raise ParseError(f"Thiếu tên người chơi trước '{value}'.\n{seat_hint(seats, game_type)}")
 
         player: Player = value
         i += 1
@@ -145,26 +177,26 @@ def _parse_named(text: str, seats: list[Player]) -> ParsedRound:
         if i < len(tokens) and tokens[i][0] == "num":
             if is_banker:
                 raise ParseError(
-                    f"{player.name} la nguoi cam chuong nen khong dien diem "
-                    "- diem cam chuong do bot tu tinh."
+                    f"{player.name} là {role_subject} nên không điền điểm "
+                    f"- điểm {role_score} do bot tự tính."
                 )
             scores[player.id] = tokens[i][1]
             i += 1
         else:
-            is_banker = True  # ten tran khong kem so = nguoi cam chuong
+            is_banker = True  # ten tran khong kem so = nguoi cam chuong / nguoi thang
 
         if player.id in mentioned:
-            raise ParseError(f"{player.name} bi nhap 2 lan trong cung 1 van.")
+            raise ParseError(f"{player.name} bị nhập 2 lần trong cùng 1 ván.")
         mentioned.append(player.id)
 
         if is_banker:
             if banker_id is not None and banker_id != player.id:
                 names = [p.name for p in seats if p.id in (banker_id, player.id)]
-                raise ParseError(f"Co 2 nguoi cam chuong ({' va '.join(names)}). Chi duoc 1 nguoi.")
+                raise ParseError(f"Có 2 {role_subject} ({' và '.join(names)}). Chỉ được 1 người.")
             banker_id = player.id
 
     if marked_next:
-        raise ParseError("Thieu ten nguoi choi sau 'c:'.")
+        raise ParseError("Thiếu tên người chơi sau tiền tố đánh dấu thắng/chương.")
 
     absent = [p for p in seats if p.id not in mentioned]
     if banker_id is None:
@@ -172,20 +204,20 @@ def _parse_named(text: str, seats: list[Player]) -> ParsedRound:
             banker_id = absent[0].id
         elif not absent:
             raise ParseError(
-                "Moi nguoi deu co diem nen khong biet ai cam chuong. "
-                "Bo diem cua nguoi cam chuong, hoac them dau * sau ten."
+                f"Mọi người đều có điểm nên không biết ai {role_verb}. "
+                f"Bỏ điểm của {role_subject}, hoặc thêm dấu * sau tên."
             )
         else:
             names = ", ".join(p.name for p in absent)
-            raise ParseError(f"Khong ro ai cam chuong giua: {names}. Them dau * sau ten nguoi do.")
+            raise ParseError(f"Không rõ ai {role_verb} giữa: {names}. Thêm dấu * sau tên người đó.")
         absent = []
 
-    return _finish(banker_id, scores, [p.id for p in absent], "named")
+    return _finish(banker_id, scores, [p.id for p in absent], "named", game_type)
 
 
 def _tokenize_named(text: str, seats: list[Player]) -> list[tuple[str, object]]:
     marked = re.sub(r"\*", f" {_BANKER_SUFFIX} ", text)
-    marked = re.sub(r"(?i)\b(?:chuong|chg|c)\s*:", f" {_BANKER_PREFIX} ", marked)
+    marked = re.sub(r"(?i)\b(?:chuong|chg|c|thang|thg|t|win|w)\s*:", f" {_BANKER_PREFIX} ", marked)
     words = marked.replace(",", " ").split()
 
     index = {p.norm_name: p for p in seats}
@@ -213,15 +245,16 @@ def _tokenize_named(text: str, seats: list[Player]) -> list[tuple[str, object]]:
                     break
             else:
                 raise ParseError(
-                    f"Khong nhan ra '{word}'. Nguoi choi hien tai: "
+                    f"Không nhận ra '{word}'. Người chơi hiện tại: "
                     f"{', '.join(p.name for p in seats)}"
                 )
     return tokens
 
 
 def _finish(
-    banker_id: int, scores: dict[int, int], sat_out: list[int], mode: str
+    banker_id: int, scores: dict[int, int], sat_out: list[int], mode: str, game_type: str = "3cay"
 ) -> ParsedRound:
     if not scores:
-        raise ParseError("Can it nhat 1 nguoi choi co diem ngoai nguoi cam chuong.")
+        role_subject = "người thắng" if game_type == "sam" else "người cầm chương"
+        raise ParseError(f"Cần ít nhất 1 người chơi có điểm ngoài {role_subject}.")
     return ParsedRound(banker_id=banker_id, scores=scores, mode=mode, sat_out=sat_out)

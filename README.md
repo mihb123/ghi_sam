@@ -1,12 +1,12 @@
-# 🎴 Bot ghi điểm 3 cây — Telegram + Zalo + Web PWA
+# 🎴 Bot ghi điểm 3 cây & Sâm — Telegram + Zalo + Web PWA
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![React 19](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
 [![Tailwind CSS v4](https://img.shields.io/badge/Tailwind-v4-38bdf8.svg)](https://tailwindcss.com/)
 [![SQLite](https://img.shields.io/badge/Database-SQLite-003B57.svg)](https://sqlite.org/)
-[![Tests](https://img.shields.io/badge/Tests-134%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-139%20passed-brightgreen.svg)](tests/)
 
-Sổ ghi điểm điện tử tự động cho bàn 3 cây ngoài đời. Gõ kết quả từng ván trực tiếp trong chat $\rightarrow$ lưu trữ SQLite $\rightarrow$ xem bảng tổng lũy kế ngay trong chat $\rightarrow$ xem realtime trên ứng dụng Web (PWA Mobile-First) $\rightarrow$ tự động export lên Google Sheets có format màu và freeze pane.
+Sổ ghi điểm điện tử tự động cho bàn **3 cây** và **Sâm (Sâm lốc)** ngoài đời. Gõ kết quả từng ván trực tiếp trong chat $\rightarrow$ lưu trữ SQLite $\rightarrow$ xem bảng tổng lũy kế ngay trong chat $\rightarrow$ xem realtime trên ứng dụng Web (PWA Mobile-First) $\rightarrow$ tự động export lên Google Sheets có format màu và freeze pane.
 
 Chạy đồng thời **Telegram** (long polling) và **Zalo** (webhook + HMAC) trong cùng một tiến trình, dùng chung một cơ sở dữ liệu.
 
@@ -16,36 +16,50 @@ Chạy đồng thời **Telegram** (long polling) và **Zalo** (webhook + HMAC) 
 
 ## 📑 Mục lục
 
-1. [Quy tắc tính điểm](#quy-tắc-tính-điểm)
-2. [Cách nhập một ván](#cách-nhập-một-ván)
-3. [Bảng lệnh Bot](#lệnh)
-4. [Cài đặt & Khởi chạy nhanh](#setup)
-5. [Cấu hình Telegram](#1-telegram)
-6. [Cấu hình Zalo](#2-zalo)
-7. [Expose webhook qua Cloudflare Tunnel](#3-expose-webhook-qua-cloudflare-tunnel)
-8. [Cấp quyền Google Sheet](#4-cấp-quyền-google-sheet)
-9. [Trang web xem trên điện thoại (PWA)](#trang-web-xem-trên-điện-thoại)
-10. [CLI quản trị Zalo](#cli-quản-lý-zalo)
-11. [Triển khai bằng Docker Compose](#triển-khai-bằng-docker)
-12. [Bảng biến môi trường (.env)](#biến-trong-env)
-13. [Kiến trúc Mã nguồn](#kiến-trúc)
+1. [Chế độ chơi (3 cây & Sâm)](#chế-độ-chơi-3-cây--sâm)
+2. [Quy tắc tính điểm](#quy-tắc-tính-điểm)
+3. [Cách nhập một ván](#cách-nhập-một-ván)
+4. [Bảng lệnh Bot](#lệnh)
+5. [Cài đặt & Khởi chạy nhanh](#setup)
+6. [Cấu hình Telegram](#1-telegram)
+7. [Cấu hình Zalo](#2-zalo)
+8. [Expose webhook qua Cloudflare Tunnel](#3-expose-webhook-qua-cloudflare-tunnel)
+9. [Cấp quyền Google Sheet](#4-cấp-quyền-google-sheet)
+10. [Trang web xem trên điện thoại (PWA)](#trang-web-xem-trên-điện-thoại)
+11. [CLI quản trị Zalo](#cli-quản-lý-zalo)
+12. [Triển khai bằng Docker Compose](#triển-khai-bằng-docker)
+13. [Bảng biến môi trường (.env)](#biến-trong-env)
+14. [Kiến trúc Mã nguồn](#kiến-trúc)
+
+---
+
+## Chế độ chơi (3 cây & Sâm)
+
+Bot hỗ trợ 2 chế độ chơi và lưu thông tin `game_type` vào database:
+- **3 cây (`3cay`)**: Người cầm chương là vai trò trung tâm. Trong bảng lịch sử / xếp hạng hiển thị cột **Chương** / **lần chương**.
+- **Sâm (`sam`)**: Người thắng ván ăn điểm của tất cả người thua. Trong bảng lịch sử / xếp hạng hiển thị cột **Thắng** / **lần thắng**.
+
+Khi mở bàn mới bằng lệnh `/banmoi`, bot sẽ hỏi bạn muốn chơi 3 cây hay Sâm:
+- `/banmoi 3cay [ghi chú]` (hoặc lệnh tắt `/3cay [ghi chú]`): Mở bàn chơi 3 cây.
+- `/banmoi sam [ghi chú]` (hoặc lệnh tắt `/sam [ghi chú]`): Mở bàn chơi Sâm.
+- `/help 3cay` / `/help sam`: Xem hướng dẫn chi tiết riêng cho từng trò chơi.
 
 ---
 
 ## Quy tắc tính điểm
 
-Người cầm chương **không điền điểm** — bot tự tính, vì chương ăn/trả trực tiếp với từng người nên tổng một ván luôn bằng 0:
+Người cầm chương (ở 3 cây) hoặc Người thắng (ở Sâm) **không điền điểm** — bot tự tính, vì người thắng/chương ăn/trả trực tiếp với từng người nên tổng một ván luôn bằng 0:
 
 ```
 Người chơi:  Hương, Hằng, Toàn, Thu     (thứ tự chỗ ngồi)
-Bạn gõ:      -5, 5, , 6
-                    └── ô trống = Toàn cầm chương
+Bạn gõ:      -5, -10, , -20
+                    └── ô trống = Toàn (thắng/chương)
 
-Bot tính:    Toàn = -(-5 + 5 + 6) = -6
-Kết quả:     Hương -5 │ Hằng +5 │ Toàn -6 │ Thu +6      → tổng = 0 ✓
+Bot tính:    Toàn = -(-5 + -10 + -20) = +35
+Kết quả:     Hương -5 │ Hằng -10 │ Toàn +35 │ Thu -20      → tổng = 0 ✓
 ```
 
-`0` là **điểm thật** (hòa), không phải dấu cầm chương. Chương có thể net = 0 và vẫn để ô trống.
+`0` là **điểm thật** (hòa), không phải dấu người thắng/chương. Người thắng/chương vẫn để ô trống.
 
 ---
 
@@ -55,10 +69,10 @@ Kết quả:     Hương -5 │ Hằng +5 │ Toàn -6 │ Thu +6      → tổn
 
 | Gõ | Nghĩa |
 |---|---|
-| `-5, 5, , 6` | ô trống = Toàn cầm chương |
-| `-5, 5, c, 6` | `c` cũng là cầm chương |
-| `-5, 5, 6,` | ô trống ở cuối $\rightarrow$ Thu cầm chương |
-| `, 5, -7, 6` | ô trống ở đầu $\rightarrow$ Hương cầm chương |
+| `-5, 5, , 6` | ô trống = Toàn thắng / cầm chương |
+| `-5, 5, c, 6` / `-5, 5, t, 6` | `c` / `t` cũng là cầm chương / thắng |
+| `-5, 5, 6,` | ô trống ở cuối $\rightarrow$ Thu thắng / cầm chương |
+| `, 5, -7, 6` | ô trống ở đầu $\rightarrow$ Hương thắng / cầm chương |
 | `-5, 5, , x` | `x` = Thu bỏ ván này (ngồi ngoài) |
 | `-5,5,,6` | khoảng trắng tùy ý |
 
@@ -66,10 +80,11 @@ Kết quả:     Hương -5 │ Hằng +5 │ Toàn -6 │ Thu +6      → tổn
 
 | Gõ | Nghĩa |
 |---|---|
-| `Hương -5, Hằng 5, Toàn, Thu 6` | tên trần không kèm số = cầm chương |
-| `Toàn*, Hương -5, Hằng 5, Thu 6` | dấu `*` = cầm chương |
-| `c:Toàn Hương -5 Hằng 5 Thu 6` | tiền tố `c:` = cầm chương |
-| `Hương -5, Hằng 5, Thu 6` | thiếu Toàn $\rightarrow$ tự suy ra Toàn cầm chương |
+| `Hương -5, Hằng 5, Toàn, Thu 6` | tên trần không kèm số = người thắng / cầm chương |
+| `Toàn*, Hương -5, Hằng 5, Thu 6` | dấu `*` = người thắng / cầm chương |
+| `c:Toàn Hương -5 Hằng 5 Thu 6` | tiền tố `c:` = cầm chương (3 cây) |
+| `thang:Toàn Hương -5 Hằng -10 Thu -20` | tiền tố `thang:` (hoặc `t:`, `win:`) = người thắng (Sâm) |
+| `Hương -5, Hằng 5, Thu 6` | thiếu Toàn $\rightarrow$ tự suy ra Toàn thắng / cầm chương |
 
 - Tên không phân biệt hoa/thường và không cần gõ dấu (`hang` = `Hằng`).
 - Bot chỉ tự bắt tin nhắn trần khi nó **chắc chắn** là kết quả ván, nên chat thường (*"tối nay đánh tiếp không"*) không bị ghi nhầm.
@@ -82,20 +97,21 @@ Kết quả:     Hương -5 │ Hằng +5 │ Toàn -6 │ Thu +6      → tổn
 
 | Lệnh | Việc |
 |---|---|
-| `/help` · `#help` | Hướng dẫn sử dụng |
+| `/help` · `#help` | Hướng dẫn sử dụng (tự theo trò chơi hiện tại, hoặc `/help sam`, `/help 3cay`) |
 | `/nguoichoi Hương, Hằng, Toàn, Thu` | Khai báo người chơi — **thứ tự này chính là thứ tự nhập điểm** |
 | `/dsnguoi` | Xem danh sách và thứ tự chỗ |
 | `/themnguoi Nam` · `/xoanguoi Nam` | Thêm / bỏ một người |
-| `/banmoi [ghi chú]` · `/ketthuc` | Mở bàn / chốt bàn |
+| `/banmoi` | Mở bàn mới (hỏi chọn 3 cây hay Sâm) |
+| `/banmoi 3cay [ghi chú]` · `/3cay [ghi chú]` | Mở bàn 3 cây |
+| `/banmoi sam [ghi chú]` · `/sam [ghi chú]` | Mở bàn Sâm |
+| `/ketthuc` | Chốt bàn đang chơi |
 | `/v -5, 5, , 6` | Ghi một ván |
 | `/undo` | Huỷ ván vừa ghi |
 | `/xoa 3` · `/xoa 3 5 7` | Xoá ván theo số thứ tự |
 | `/khoiphuc 3` | Lấy lại ván đã xoá |
 | `/sua 3 -5, 5, , 6` | Nhập lại ván số 3 (giữ nguyên số ván) |
-| `/xoaban xacnhan` | Xoá sạch bàn đang chơi |
 | `/bang` | Điểm luỹ kế bàn đang chơi |
 | `/lichsu 10` | 10 ván gần nhất |
-| `/xh` | Xếp hạng tích luỹ mọi bàn |
 | `/web` | Link xem bàn đang chơi trên điện thoại |
 | `/web doilink` | Đổi link nếu lỡ lọt ra ngoài nhóm |
 | `/sheet <link>` | Lưu link Google Sheet cho nhóm này |

@@ -17,9 +17,15 @@ type RoundsViewProps = {
   rounds: RoundEntry[]
   players: Player[]
   voidedSeqs: number[]
+  gameType?: string
 }
 
-export function RoundsView({ rounds, players, voidedSeqs }: RoundsViewProps) {
+export function RoundsView({
+  rounds,
+  players,
+  voidedSeqs,
+  gameType = "3cay",
+}: RoundsViewProps) {
   // Van moi nhat len dau: mo dien thoai giua ban la de xem van vua ghi.
   const newestFirst = [...rounds].reverse()
 
@@ -27,7 +33,12 @@ export function RoundsView({ rounds, players, voidedSeqs }: RoundsViewProps) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 md:hidden">
         {newestFirst.map((round) => (
-          <RoundCard key={round.seq} round={round} players={players} />
+          <RoundCard
+            key={round.seq}
+            round={round}
+            players={players}
+            gameType={gameType}
+          />
         ))}
       </div>
 
@@ -76,11 +87,14 @@ export function RoundsView({ rounds, players, voidedSeqs }: RoundsViewProps) {
 function RoundCard({
   round,
   players,
+  gameType,
 }: {
   round: RoundEntry
   players: Player[]
+  gameType?: string
 }) {
   const banker = players.find((player) => player.id === round.bankerId)
+  const roleLabel = gameType === "sam" ? "thắng" : "chương"
 
   return (
     <div className="rounded-xl bg-card p-3 ring-1 ring-foreground/10">
@@ -88,7 +102,7 @@ function RoundCard({
         <span className="font-medium">Ván {round.seq}</span>
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <CrownIcon className="size-3.5 shrink-0" aria-hidden />
-          <span className="truncate">chương: {banker?.name ?? "?"}</span>
+          <span className="truncate">{roleLabel}: {banker?.name ?? "?"}</span>
           <span aria-hidden>·</span>
           <span className="tabular-nums">{hhmm(round.at)}</span>
         </span>

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .text import normalize
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = [
     """
@@ -44,6 +44,7 @@ SCHEMA = [
     CREATE TABLE IF NOT EXISTS sessions (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         chat_key   TEXT NOT NULL REFERENCES chats(chat_key) ON DELETE CASCADE,
+        game_type  TEXT NOT NULL DEFAULT '3cay',
         note       TEXT,
         seats      TEXT NOT NULL,
         started_at TEXT NOT NULL,
@@ -96,6 +97,7 @@ class Player:
 class Session:
     id: int
     chat_key: str
+    game_type: str
     note: str | None
     seat_ids: list[int]
     started_at: str
@@ -135,6 +137,7 @@ class Database:
             if self._is_legacy_v1():
                 self._upgrade_v1_to_v2()
             self._add_web_token_column()
+            self._add_game_type_column()
             self._apply_schema()
             self.conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         # Chay ca khi user_version da moi nhat: DB dinh bug FK duoi day van dang o dung version.
@@ -154,6 +157,11 @@ class Database:
         columns = {r["name"] for r in self.conn.execute("PRAGMA table_info(chats)")}
         if columns and "web_token" not in columns:
             self.conn.execute("ALTER TABLE chats ADD COLUMN web_token TEXT")
+
+    def _add_game_type_column(self) -> None:
+        columns = {r["name"] for r in self.conn.execute("PRAGMA table_info(sessions)")}
+        if columns and "game_type" not in columns:
+            self.conn.execute("ALTER TABLE sessions ADD COLUMN game_type TEXT NOT NULL DEFAULT '3cay'")
 
     # v1 dung chat_id INTEGER va chi co Telegram.
     def _is_legacy_v1(self) -> bool:
@@ -366,10 +374,12 @@ class Database:
         ).fetchone()
         return self._to_session(row) if row else None
 
-    def open_session(self, key: str, seat_ids: list[int], note: str | None = None) -> Session:
+    def open_session(
+        self, key: str, seat_ids: list[int], note: str | None = None, game_type: str = "3cay"
+    ) -> Session:
         cur = self.conn.execute(
-            "INSERT INTO sessions (chat_key, note, seats, started_at) VALUES (?, ?, ?, ?)",
-            (key, note, json.dumps(seat_ids), _now()),
+            "INSERT INTO sessions (chat_key, game_type, note, seats, started_at) VALUES (?, ?, ?, ?, ?)",
+            (key, game_type, note, json.dumps(seat_ids), _now()),
         )
         self.conn.commit()
         row = self.conn.execute("SELECT * FROM sessions WHERE id = ?", (cur.lastrowid,)).fetchone()
@@ -387,9 +397,11 @@ class Database:
 
     @staticmethod
     def _to_session(row: sqlite3.Row) -> Session:
+        keys = row.keys()
         return Session(
             id=row["id"],
             chat_key=row["chat_key"],
+            game_type=row["game_type"] if "game_type" in keys else "3cay",
             note=row["note"],
             seat_ids=json.loads(row["seats"]),
             started_at=row["started_at"],

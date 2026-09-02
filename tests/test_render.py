@@ -22,29 +22,29 @@ def plain(html: str) -> str:
 def test_van_binh_thuong_hien_du_4_nguoi():
     rnd = Round(1, 7, 3, "2026-09-02T20:14:00+07:00", "-5, 5, , 6", {1: -5, 2: 5, 3: -6, 4: 6})
     out = plain(render.round_saved(TelegramFmt(), rnd, SEATS, {1: -5, 2: 5, 3: -6, 4: 6}, 7))
-    assert "van 7" in out
+    assert "ván 7" in out
     assert "Hương -5 | Hằng +5 | Toàn* -6 | Thu +6" in out
 
 
 def test_nguoi_bo_van_van_duoc_neu_ten():
     rnd = Round(1, 1, 3, "2026-09-02T20:14:00+07:00", "-5, 5, , x", {1: -5, 2: 5, 3: 0})
-    assert "Thu (bo van)" in plain(render.round_saved(TelegramFmt(), rnd, SEATS, {1: -5, 2: 5, 3: 0}, 1))
+    assert "Thu (bỏ ván)" in plain(render.round_saved(TelegramFmt(), rnd, SEATS, {1: -5, 2: 5, 3: 0}, 1))
 
 
 def test_bang_diem_co_newline_truoc_bang():
     out = plain(render.standings(TelegramFmt(), SEATS, {1: -5, 2: 5, 3: -6, 4: 6}, 3))
-    assert "sau 3 van\nNguoi" in out
+    assert "sau 3 ván\nNgười" in out
     assert out.index("Thu") < out.index("Hương")  # xep theo diem giam dan
 
 
 def test_canh_bao_khi_tong_khac_0():
-    assert "khong bang 0" in plain(render.standings(TelegramFmt(), SEATS, {1: 5, 2: 5}, 1))
+    assert "không bằng 0" in plain(render.standings(TelegramFmt(), SEATS, {1: 5, 2: 5}, 1))
 
 
 def test_lichsu_danh_dau_van_da_xoa():
     rnd = Round(1, 1, 3, "2026-09-02T20:14:00+07:00", "-5, 5, , 6", {1: -5, 2: 5, 3: -6, 4: 6})
     out = plain(render.history(TelegramFmt(), [rnd], SEATS, voided=[4, 5]))
-    assert "Da xoa: van 4, 5" in out
+    assert "Đã xóa: ván 4, 5" in out
     assert "20:14" in out
 
 
@@ -67,7 +67,7 @@ def test_zalo_lichsu_gom_theo_van():
 
     rnd = Round(1, 7, 3, "2026-09-02T20:14:00+07:00", "-5, 5, , 6", {1: -5, 2: 5, 3: -6, 4: 6})
     out = render.history(ZaloFmt(), [rnd], SEATS, [])
-    assert "Van 7 · 20:14" in out
+    assert "Ván 7 · 20:14" in out
     assert "Hương -5" in out and "Toàn -6" in out
 
 
@@ -109,3 +109,24 @@ def test_strip_bot_mention(text, expected):
 
 def test_strip_bot_mention_khong_biet_ten_bot():
     assert strip_bot_mention("@Bot Ghi điểm #help", None) == "@Bot Ghi điểm #help"
+
+
+def test_roster_example_khop_so_cho_ngoi():
+    from ghibai.render import TelegramFmt, example_round, roster
+
+    fmt = TelegramFmt()
+    for count in [2, 3, 4, 7, 9, 12]:
+        seats = [Player(i, f"P{i}", f"p{i}", i) for i in range(1, count + 1)]
+        out_3c = roster(fmt, seats, game_type="3cay")
+        ex_3c = example_round(count, game_type="3cay")
+        assert len(ex_3c.split(",")) == count
+        assert "c" in [s.strip() for s in ex_3c.split(",")]
+        assert ex_3c in out_3c
+        assert "người cầm chương" in out_3c
+
+        out_sam = roster(fmt, seats, game_type="sam")
+        ex_sam = example_round(count, game_type="sam")
+        assert len(ex_sam.split(",")) == count
+        assert "c" in [s.strip() for s in ex_sam.split(",")]
+        assert ex_sam in out_sam
+        assert "người thắng" in out_sam

@@ -105,8 +105,8 @@ def test_zalo_gui_lai_cung_update_khong_ghi_2_lan(hook):
     asyncio.run(post(webhook, body))
 
     assert len(client.sent) == 1
-    assert "Da ghi van 1" in client.sent[0][1]
-    assert "van 2" not in client.sent[0][1]
+    assert "Đã ghi ván 1" in client.sent[0][1]
+    assert "ván 2" not in client.sent[0][1]
 
 
 def test_seen_messages_gioi_han_bo_nho():

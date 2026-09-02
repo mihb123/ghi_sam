@@ -47,7 +47,7 @@ class WebApi:
         chat = self.db.chat_by_web_token(token) if token else None
         if chat is None:
             raise web.HTTPNotFound(
-                text='{"error": "Link khong dung hoac da bi doi. Go /web trong nhom chat de lay link moi."}',
+                text='{"error": "Link không đúng hoặc đã bị đổi. Gõ /web trong nhóm chat để lấy link mới."}',
                 content_type="application/json",
             )
         return chat
@@ -69,6 +69,7 @@ def _chat_payload(chat: dict) -> dict:
 def _session_payload(session: Session, played: int) -> dict:
     return {
         "id": session.id,
+        "gameType": getattr(session, "game_type", "3cay") or "3cay",
         "note": session.note,
         "startedAt": session.started_at,
         "endedAt": session.ended_at,

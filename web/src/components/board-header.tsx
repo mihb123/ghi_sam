@@ -20,13 +20,14 @@ export function BoardHeader({
   onOpenSettings,
 }: BoardHeaderProps) {
   const session = board?.session ?? null
+  const gameName = session?.gameType === "sam" ? "Sâm" : "3 cây"
 
   return (
     <header className="sticky top-0 z-30 border-b bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex max-w-2xl items-center gap-1.5 px-4 py-2">
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-heading font-medium">
-            {board?.chat.title ?? "Bàn 3 cây"}
+            {board?.chat.title ?? `Bàn ${gameName}`}
           </h1>
           <p className="truncate text-xs text-muted-foreground">
             {subtitle(board)}
@@ -34,9 +35,12 @@ export function BoardHeader({
         </div>
 
         {session ? (
-          <Badge variant={session.live ? "default" : "secondary"}>
-            {session.live ? "Đang chơi" : "Đã chốt"}
-          </Badge>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Badge variant="outline">{gameName}</Badge>
+            <Badge variant={session.live ? "default" : "secondary"}>
+              {session.live ? "Đang chơi" : "Đã chốt"}
+            </Badge>
+          </div>
         ) : null}
 
         <Button

@@ -48,7 +48,7 @@ def _spa(dist: Path):
         if target is None:
             if not index.is_file():
                 raise web.HTTPNotFound(
-                    text="Chua build trang web. Chay: cd web && npm install && npm run build"
+                    text="Chưa build trang web. Chạy: cd web && npm install && npm run build"
                 )
             target = index
         response = web.FileResponse(target)

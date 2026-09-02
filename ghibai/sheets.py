@@ -33,7 +33,7 @@ def extract_key(url: str) -> str:
     if _BARE_KEY.match(url):
         return url
     raise SheetError(
-        "Link Google Sheet khong hop le. Dan ca link dang:\n"
+        "Link Google Sheet không hợp lệ. Dán cả link dạng:\n"
         "https://docs.google.com/spreadsheets/d/<id>/edit"
     )
 
@@ -56,14 +56,14 @@ class SheetExporter:
             return self._client
         if not self.sa_json_path.exists():
             raise SheetError(
-                f"Chua co file Service Account: {self.sa_json_path}\n"
-                "Tao Service Account tren Google Cloud, tai file JSON key ve va tro "
-                "GOOGLE_SA_JSON trong .env vao file do."
+                f"Chưa có file Service Account: {self.sa_json_path}\n"
+                "Tạo Service Account trên Google Cloud, tải file JSON key về và trỏ "
+                "GOOGLE_SA_JSON trong .env vào file đó."
             )
         try:
             import gspread
         except ImportError as exc:
-            raise SheetError("Chua cai gspread. Chay: pip install -r requirements.txt") from exc
+            raise SheetError("Chưa cài gspread. Chạy: pip install -r requirements.txt") from exc
         self._client = gspread.service_account(filename=str(self.sa_json_path))
         return self._client
 
@@ -192,19 +192,19 @@ class SheetExporter:
 
         if "SERVICE_DISABLED" in message or "has not been used in project" in message:
             return SheetError(
-                "Google Sheets API chua duoc bat cho project cua Service Account.\n"
-                "Vao Google Cloud Console -> APIs & Services -> bat 'Google Sheets API' "
-                "va 'Google Drive API', doi 1-2 phut roi thu lai."
+                "Google Sheets API chưa được bật cho project của Service Account.\n"
+                "Vào Google Cloud Console -> APIs & Services -> bật 'Google Sheets API' "
+                "và 'Google Drive API', đợi 1-2 phút rồi thử lại."
             )
         if status in (401, 403, 404):
             return SheetPermissionError(
-                "Bot chua co quyen ghi vao sheet nay.\n\n"
-                "Mo sheet -> Share -> dan email duoi day, chon quyen Editor:\n"
+                "Bot chưa có quyền ghi vào sheet này.\n\n"
+                "Mở sheet -> Share -> dán email dưới đây, chọn quyền Editor:\n"
                 f"{email}\n\n"
                 f"Sheet: https://docs.google.com/spreadsheets/d/{key}/edit\n"
-                "Xong thi go export lai."
+                "Xong thì gõ export lại."
             )
-        return SheetError(f"Loi khi ghi Google Sheet: {message[:300]}")
+        return SheetError(f"Lỗi khi ghi Google Sheet: {message[:300]}")
 
 
 def _error_details(exc: Exception) -> tuple[int | None, str]:
@@ -224,8 +224,8 @@ def _error_details(exc: Exception) -> tuple[int | None, str]:
 
 
 # Dung du lieu bang tu cac van dang hoat dong cua 1 ban.
-def build_table(seats, rounds, totals) -> tuple[str, list[str], list[list], list, list]:
-    header = ["Gio", *[p.name for p in seats]]
+def build_table(seats, rounds, totals, game_type: str = "3cay") -> tuple[str, list[str], list[list], list, list]:
+    header = ["Giờ", *[p.name for p in seats]]
     rows: list[list] = []
     banker_cells: list[tuple[int, int]] = []
 
@@ -240,7 +240,8 @@ def build_table(seats, rounds, totals) -> tuple[str, list[str], list[list], list
             if player.id == rnd.banker_id:
                 banker_cells.append((offset + 2, seat_idx + 1))
 
-    totals_row = ["TONG", *[totals.get(p.id, 0) for p in seats]]
+    totals_row = ["TỔNG", *[totals.get(p.id, 0) for p in seats]]
     started = rounds[0].created_at[:10] if rounds else datetime.now().strftime("%Y-%m-%d")
-    title = f"Ban ngay {started} - {len(rounds)} van"
+    game_name = "Sâm" if game_type == "sam" else "3 cây"
+    title = f"Bàn {game_name} ngày {started} - {len(rounds)} ván"
     return title, header, rows, totals_row, banker_cells

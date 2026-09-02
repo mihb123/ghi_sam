@@ -25,5 +25,5 @@ def test_chuong_co_the_net_bang_0():
 
 def test_chuong_nhap_diem_thi_loi():
     parsed = ParsedRound(banker_id=1, scores={1: 5, 2: -5}, mode="named")
-    with pytest.raises(ScoringError, match="khong duoc nhap diem"):
+    with pytest.raises(ScoringError, match="không được nhập điểm"):
         resolve_scores(parsed)
