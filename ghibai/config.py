@@ -1,0 +1,124 @@
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+TELEGRAM = "telegram"
+ZALO = "zalo"
+
+
+@dataclass(frozen=True)
+class Config:
+    telegram_token: str | None
+    zalo_token: str | None
+    zalo_secret_token: str | None
+    zalo_webhook_url: str | None
+    web_host: str
+    web_port: int
+    web_ui: bool
+    web_dist: Path
+    web_public_url: str | None
+    sa_json_path: Path
+    db_path: Path
+    default_sheet_url: str | None
+    sheet_tab_name: str
+    allowed_chats: dict[str, frozenset[str]]
+
+    @property
+    def platforms(self) -> list[str]:
+        active = []
+        if self.telegram_token:
+            active.append(TELEGRAM)
+        if self.zalo_token:
+            active.append(ZALO)
+        return active
+
+    # Webhook Zalo va trang web deu can HTTP server; tat ca hai thi khong mo port nao.
+    @property
+    def needs_webserver(self) -> bool:
+        return bool(self.zalo_token) or self.web_ui
+
+
+def load_config(env_file: str | os.PathLike[str] | None = None) -> Config:
+    load_dotenv(env_file, override=False)
+
+    telegram_token = _clean("TELEGRAM_BOT_TOKEN")
+    zalo_token = _clean("ZALO_BOT_TOKEN")
+    if not telegram_token and not zalo_token:
+        raise SystemExit(
+            "Chua co token nao. Dien TELEGRAM_BOT_TOKEN va/hoac ZALO_BOT_TOKEN trong .env.\n"
+            "  Telegram: @BotFather -> /newbot\n"
+            "  Zalo    : https://zalo.me/s/botcreator/"
+        )
+
+    zalo_secret = _clean("ZALO_SECRET_TOKEN")
+    if zalo_token and not zalo_secret:
+        raise SystemExit(
+            "Co ZALO_BOT_TOKEN nhung thieu ZALO_SECRET_TOKEN.\n"
+            "Zalo gui khoa nay trong header X-Bot-Api-Secret-Token de xac thuc webhook, "
+            "thieu no thi bat ky ai cung goi duoc webhook cua ban.\n"
+            "Tao 1 khoa 8-256 ky tu:  openssl rand -hex 24"
+        )
+    if zalo_secret and not 8 <= len(zalo_secret) <= 256:
+        raise SystemExit(
+            f"ZALO_SECRET_TOKEN dai {len(zalo_secret)} ky tu, Zalo yeu cau 8-256 ky tu."
+        )
+
+    db_path = Path(os.getenv("DB_PATH") or "./data/ghibai.db").expanduser()
+    _ensure_writable(db_path)
+
+    return Config(
+        telegram_token=telegram_token,
+        zalo_token=zalo_token,
+        zalo_secret_token=zalo_secret,
+        zalo_webhook_url=_clean("ZALO_WEBHOOK_URL"),
+        web_host=_clean("WEB_HOST") or "0.0.0.0",
+        web_port=int(_clean("WEB_PORT") or 8080),
+        web_ui=_flag("WEB_UI", default=True),
+        web_dist=Path(os.getenv("WEB_DIST") or "./web/dist").expanduser(),
+        web_public_url=_clean("WEB_PUBLIC_URL"),
+        sa_json_path=Path(
+            os.getenv("GOOGLE_SA_JSON") or "./secrets/service_account.json"
+        ).expanduser(),
+        db_path=db_path,
+        default_sheet_url=_clean("DEFAULT_SHEET_URL"),
+        sheet_tab_name=_clean("SHEET_TAB_NAME") or "Chi tiet van",
+        allowed_chats={
+            TELEGRAM: _parse_chat_ids("TELEGRAM_CHAT_ID"),
+            ZALO: _parse_chat_ids("ZALO_CHAT_ID"),
+        },
+    )
+
+
+def _clean(name: str) -> str | None:
+    return (os.getenv(name) or "").strip() or None
+
+
+def _flag(name: str, default: bool) -> bool:
+    raw = (os.getenv(name) or "").strip().lower()
+    if not raw:
+        return default
+    return raw not in ("0", "false", "no", "off", "tat")
+
+
+# Rong = cho phep moi chat cua platform do.
+def _parse_chat_ids(name: str) -> frozenset[str]:
+    raw = (os.getenv(name) or "").replace(";", ",")
+    return frozenset(token.strip() for token in raw.split(",") if token.strip())
+
+
+# Sai UID trong Docker chi bao "unable to open database file" nen kiem tra som cho ro rang.
+def _ensure_writable(db_path: Path) -> None:
+    try:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SystemExit(f"Khong tao duoc thu muc {db_path.parent}: {exc}")
+
+    if not os.access(db_path.parent, os.W_OK):
+        raise SystemExit(
+            f"Khong co quyen ghi vao {db_path.parent} (dang chay bang uid {os.getuid()}).\n"
+            "Neu chay bang Docker: dat DOCKER_UID va DOCKER_GID trong .env cho khop voi host\n"
+            '  echo "DOCKER_UID=$(id -u)" >> .env && echo "DOCKER_GID=$(id -g)" >> .env\n'
+            "roi chay lai: docker compose up -d --force-recreate"
+        )

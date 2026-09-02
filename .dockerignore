@@ -1,0 +1,17 @@
+.venv/
+data/
+secrets/
+.env
+.env.example
+.git/
+.gitignore
+__pycache__/
+*.py[cod]
+.pytest_cache/
+tests/
+Dockerfile
+.dockerignore
+docker-compose.yml
+web/node_modules/
+web/dist/
+web/dev-dist/

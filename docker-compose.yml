@@ -1,0 +1,56 @@
+services:
+  bot:
+    build: .
+    image: ghibai-bot
+    container_name: ghibai-bot
+    restart: unless-stopped
+
+    # Token, allowlist, link sheet... doc tu .env
+    env_file: .env
+
+    # Chay bang chinh UID cua host de container ghi duoc vao ./data va dung chung
+    # file DB voi luc chay truc tiep (uv run ghibai). Lay UID: id -u
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+
+    # Ghi de bang duong dan tuyet doi trong container, khong phu thuoc gia tri trong .env
+    environment:
+      HOME: /tmp
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+      DB_PATH: /app/data/ghibai.db
+      GOOGLE_SA_JSON: /app/secrets/service_account.json
+      WEB_HOST: 0.0.0.0
+      WEB_DIST: /app/web/dist
+
+    # Chi bind 127.0.0.1: app KHONG co TLS, Cloudflare Tunnel lo HTTPS.
+    # Cong phai khop ingress trong /etc/cloudflared/config.yml.
+    ports:
+      - "127.0.0.1:${WEB_PORT:-10240}:${WEB_PORT:-10240}"
+
+    volumes:
+      - ./data:/app/data          # SQLite - cung file DB voi luc chay truc tiep
+      - ./secrets:/app/secrets:ro # dat service_account.json vao day
+
+    # Chi kiem tra khi that su co HTTP server: webhook Zalo hoac trang web.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import os, sys, urllib.request
+          off = ("0", "false", "no", "off", "tat")
+          web_ui = os.getenv("WEB_UI", "1").strip().lower() not in off
+          if not os.getenv("ZALO_BOT_TOKEN") and not web_ui:
+              sys.exit(0)
+          port = os.getenv("WEB_PORT", "10240")
+          urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz", timeout=5)
+      interval: 1m
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
