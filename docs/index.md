@@ -239,12 +239,13 @@ Xử lý tại [`ghibai/parser.py`](file:///home/dell/ghi_bai/ghibai/parser.py) 
 ### 4.6. Xuất Dữ liệu Google Sheets Tự động
 - **Tự động format & highlight**: Sử dụng thư viện `gspread` và Service Account ([`ghibai/sheets.py`](file:///home/dell/ghi_bai/ghibai/sheets.py)).
 - **Tính toán nguồn sự thật**: Mỗi lần gõ `/export`, toàn bộ tab `Chi tiết ván` sẽ được ghi đè từ SQLite. Chạy nhiều lần không bao giờ bị trùng dòng.
-- **Trình bày chuyên nghiệp**:
+- **Trình bày chuyên nghiệp & Tối giản**:
   - Dòng 1: Tiêu đề bàn chơi và ngày tháng.
-  - Dòng 2: Header cố định (Freeze 2 dòng đầu).
-  - Thân bảng: Điểm số thực tế (có thể dùng công thức tính toán).
-  - Ô của người cầm chương trong từng ván được tô màu nền vàng (`#FFE699`).
-  - Dòng tổng kết cuối bảng có màu nổi bật.
+  - Dòng 2: Header gồm cột `Giờ` và các cột tên người chơi (đã loại bỏ cột `Ván` và `Chương` dư thừa).
+  - Thân bảng: Điểm số thực tế (có thể dùng công thức tính toán trong Sheet).
+  - Ô của người cầm chương trong từng ván được tô màu nền vàng (`#FFE699`) ngay tại cột của người đó để dễ nhận biết.
+  - Dòng tổng kết cuối bảng: `["TONG", <tổng_điểm_từng_người>]` có màu nền nổi bật.
+  - Cố định dòng tiêu đề & header (Freeze 2 rows) và cột Giờ (Freeze 1 column).
 - **Xử lý lỗi quyền thân thiện**: Nếu Google Sheet chưa được share cho Service Account, bot sẽ trích xuất mã lỗi 403/404 và gửi lại tin nhắn hướng dẫn kèm đúng email Service Account cần cấp quyền Editor.
 
 ---

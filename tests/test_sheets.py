@@ -39,17 +39,17 @@ def test_bang_export_co_dong_tong_va_o_chuong():
     totals = {1: -3, 2: 1, 3: -6, 4: 8}
     title, header, rows, totals_row, banker_cells = build_table(SEATS, rounds, totals)
 
-    assert header == ["Van", "Gio", "Hương", "Hằng", "Toàn", "Thu", "Chuong"]
-    assert rows[0] == [1, "20:14", -5, 5, -6, 6, "Toàn"]
-    assert rows[1] == [2, "20:19", 2, -4, 0, 2, "Hương"]
-    assert totals_row == ["TONG", "", -3, 1, -6, 8, ""]
+    assert header == ["Gio", "Hương", "Hằng", "Toàn", "Thu"]
+    assert rows[0] == ["20:14", -5, 5, -6, 6]
+    assert rows[1] == ["20:19", 2, -4, 0, 2]
+    assert totals_row == ["TONG", -3, 1, -6, 8]
     assert "2026-09-02" in title and "2 van" in title
 
-    # Van 1 -> dong 2 (0-based, sau tieu de + header), Toan -> cot 4
-    assert banker_cells == [(2, 4), (3, 2)]
+    # Van 1 -> dong 2 (0-based, sau tieu de + header), Toan -> cot 3
+    assert banker_cells == [(2, 3), (3, 1)]
 
 
 def test_nguoi_bo_van_de_o_trong():
     rounds = [Round(1, 1, 3, "2026-09-02T20:14:00+07:00", "-5, 5, , x", {1: -5, 2: 5, 3: 0})]
     _, _, rows, _, _ = build_table(SEATS, rounds, {1: -5, 2: 5, 3: 0})
-    assert rows[0][-2] == ""
+    assert rows[0][-1] == ""

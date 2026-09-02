@@ -225,9 +225,7 @@ def _error_details(exc: Exception) -> tuple[int | None, str]:
 
 # Dung du lieu bang tu cac van dang hoat dong cua 1 ban.
 def build_table(seats, rounds, totals) -> tuple[str, list[str], list[list], list, list]:
-    from .text import fmt_signed
-
-    header = ["Van", "Gio", *[p.name for p in seats], "Chuong"]
+    header = ["Gio", *[p.name for p in seats]]
     rows: list[list] = []
     banker_cells: list[tuple[int, int]] = []
 
@@ -236,14 +234,13 @@ def build_table(seats, rounds, totals) -> tuple[str, list[str], list[list], list
             hhmm = datetime.fromisoformat(rnd.created_at).strftime("%H:%M")
         except ValueError:
             hhmm = ""
-        banker_name = next((p.name for p in seats if p.id == rnd.banker_id), "?")
         cells = [rnd.scores.get(p.id, "") for p in seats]
-        rows.append([rnd.seq, hhmm, *cells, banker_name])
+        rows.append([hhmm, *cells])
         for seat_idx, player in enumerate(seats):
             if player.id == rnd.banker_id:
-                banker_cells.append((offset + 2, seat_idx + 2))
+                banker_cells.append((offset + 2, seat_idx + 1))
 
-    totals_row = ["TONG", "", *[totals.get(p.id, 0) for p in seats], ""]
+    totals_row = ["TONG", *[totals.get(p.id, 0) for p in seats]]
     started = rounds[0].created_at[:10] if rounds else datetime.now().strftime("%Y-%m-%d")
     title = f"Ban ngay {started} - {len(rounds)} van"
     return title, header, rows, totals_row, banker_cells

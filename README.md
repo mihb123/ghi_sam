@@ -173,14 +173,14 @@ Tab `Chi tiết ván` bị **ghi đè toàn bộ** mỗi lần export — SQLite
 
 ```
 Bàn ngày 2026-09-02 - 3 ván
-Ván │ Giờ   │ Hương │ Hằng │ Toàn │ Thu │ Chương
-  1 │ 20:14 │    -5 │    5 │   -6 │   6 │ Toàn
-  2 │ 20:19 │     3 │   -4 │    0 │   1 │ Toàn
-  3 │ 20:23 │    -2 │   -3 │    4 │   1 │ Hằng
-TỔNG        │    -4 │   -2 │   -2 │   8 │
+Giờ   │ Hương │ Hằng │ Toàn │ Thu
+20:14 │    -5 │    5 │   -6 │   6
+20:19 │     3 │   -4 │    0 │   1
+20:23 │    -2 │   -3 │    4 │   1
+TỔNG  │    -4 │   -2 │   -2 │   8
 ```
 
-Ô của người cầm chương được tô màu. Mọi ô điểm là **số thật**, tính toán được trong Sheet.
+Ô của người cầm chương được tô màu nền vàng. Mọi ô điểm là **số thật**, tính toán được trong Sheet.
 
 ---
 
